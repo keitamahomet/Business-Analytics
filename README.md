@@ -8,14 +8,7 @@ Business Analytics | Data Science | Supply Chain Analytics
 </p>
 
 # Business Analytics Portfolio
-<p align="center">
 
-![R](https://img.shields.io/badge/R-Analytics-blue)
-![Python](https://img.shields.io/badge/Python-Data%20Science-yellow)
-![SQL](https://img.shields.io/badge/SQL-Database-green)
-![PowerBI](https://img.shields.io/badge/PowerBI-Visualization-orange)
-
-</p>
 ### Mahomet Limenia Jean-Yves J. Keita
 
 Welcome to my **Business Analytics and Data Science portfolio**.
