@@ -1,0 +1,436 @@
+---
+title: |
+  Travail pratique 2 - Analytique prédictive
+author: |
+ - Équipe 14: 
+ - **MARTIN, SABRINA** (Matricule: 537381603)
+ - **KEITA, MAHOMET LIMENIA JEAN-YVES** (Matricule: 537175293)
+ - Date de remise: 2025-10-29
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: journal
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 2 Gaz à effet de serre et analytique prédictive
+
+Le Ministère de l'Air cherche à savoir s'il est possible de prédire les émissions de gaz à effet de serres pour les entreprises qui pourraient s'installer dans le futur en fonction des données détenues sur les entreprises qui sont déjà établies.
+
+On suppose que des entreprises similaires s'installeront dans des endroits similaires. 
+
+Nous cherchons à créer un modèle prédictif qui permettra de prédire les émissions moyennes par année pour les futures entreprises qui s'installeront.
+
+### Chargement des librairies
+
+CCharger les librairies tidyverse {@tidyverse} et Caret {@caret} qui seront nécessaires pour répondre à cette question. 
+```{r}
+library(tidyverse)
+library(caret)
+```
+
+# 2.1 Lecture des données
+
+Les données proviennent du registre des émissions de gaz à effet de serre du {Ministère de l'Environnement 2024}.
+
+Chargement des données d'entraînement à partir du fichier csv:
+```{r}
+data_train <-
+read.csv("data/ges/ges_qc_moy_train.csv")
+```
+
+Chargement des données de test à partir du fichier csv:
+```{r}
+data_test <-
+read.csv("data/ges/ges_qc_moy_test.csv")
+```
+
+Vérifier s'il y a eu des problèmes au chargement. Aucun problème de chargement.
+```{r}
+readr::problems(data_test)
+readr::problems(data_train)
+```
+
+Afficher les 3 premières lignes des données lues pour chaque ensemble de données:
+```{r}
+#données d'entraînement
+data_train %>%
+  head(3)
+
+#données de test
+data_test %>%
+  head(3)
+```
+
+Vérifier le nombre d'observations pour chaque jeu de données. 
+Le jeu de données d'entraînement contient 388 observations et le jeu de données test contient 42 observations.
+```{r}
+data_train %>%
+  count()
+
+data_test %>%
+  count()
+``` 
+
+# 2.2 Type de problème
+
+Ce problème est-il un problème de régression ou de classification?
+
+La donnée que nous souhaitons prédire, le nombre d'émissions moyennes annuelles de gaz à effet de serre pour une entreprise, est une donnée continue. Le problème est donc un problème de régression car nous cherchons à prédire une valeur précise pour une variable numérique et continue. La classification aurait plutôt été utilisée si la variable à prédire était de type discrète.
+
+# 2.3 Data cleaning
+
+Le nom de l'entreprise et le code SCIAN ne seront pas utilisés pour faire l'entraînement. Le nom de l'entreprise est un identifiant et non un attribut. Le code SCIAN ne sera pas utilisé non plus pour la prédiction. Visualisation des 3 premières lignes de chaque jeu de données suite à cette transformation.
+
+```{r}
+test_clean <-
+  data_test %>%
+  select(-Entreprise, -SCIAN)
+
+train_clean <-
+  data_train %>%
+  select(-Entreprise, -SCIAN)
+
+#Visualiser les 3 premières lignes
+test_clean %>%
+  head(3)
+
+train_clean %>%
+  head(3)
+```
+
+Faire une vérification des valeur manquantes dans les deux jeux de données. Il n'y a pas de valeurs manquantes.
+
+```{r}
+test_clean %>%
+  summarise(na_count = sum(is.na(.)))
+
+train_clean %>%
+  summarise(na_count = sum(is.na(.)))
+```
+
+# 2.4 Entraînement des modèles
+
+### KNN
+
+Nous allons d'abord faire l'entraînement du modèle kNN avec plusieurs hyperparamètres. Le résultat de l'entraînement est sauvegardé dans un point de restauration RDS.
+```{r}
+
+set.seed(278523)
+
+# Sélection des attributs prédicteurs utilisés pour le modèle
+predictors <- c("categorie", "Longitude", "Latitude")
+
+# valeur à prédire
+target <- "emissions_moy_annee"
+ 
+# Création d'un objet avec la méthode de validation croisée
+ctrl <- trainControl(
+  method = "cv",
+  number = 10)
+
+# Définir les hyperparamètres k à tester
+knn_grid <- expand.grid(k = c(3, 5, 7, 9, 11))
+ 
+# ------------------ kNN ------------------
+
+#création d'un fichier temporaire afin de ne pas effectuer l'entraînement à chaque exécution
+knn_file <- "knn_model.rds"
+
+if (file.exists(knn_file)) {
+  knn_model <- readRDS(knn_file)
+} else {
+  
+# Entraînement du modèle
+knn_model <- train(
+  form = as.formula(paste(target, "~", paste(predictors, collapse = "+"))),
+  data = train_clean,
+  method = "knn",
+  trControl = ctrl,
+  tuneGrid = knn_grid,
+  preProcess = c("center", "scale"),
+  metric = "RMSE"
+  )
+
+  saveRDS(knn_model, knn_file)
+}
+```
+
+Analyse de la performance du modèle. Avec l'aide de cette visualisation, on constate en effet que le paramètre bestTune obtient la meilleure performance. 
+Pour un paramètre de 11, on obtient la métrique RMSE la plus basse. C'est ce que l'on souhaite obtenir afin de réduire les erreurs.
+```{r}
+# Affichage du meilleur paramètre
+knn_model$bestTune
+
+# Visualiser la performance du modèle
+plot(knn_model)
+```
+
+### Réseau de neurones
+
+Nous allons utiliser les mêmes prédicteurs (catégorie d'entreprise, longitude et latitude), la même valeur à prédire (émissions moyennes par année) et la même méthode (validation croisée) que précédemment, mais cette fois-ci la régression sera sous forme de réseau de neurone.
+
+```{r}
+#convertir les catégories avec as.factor
+train_clean$categorie <- as.factor(train_clean$categorie)
+
+train_clean %>%
+  head(3)
+
+#Fixer le seed pour retirer l'aspect aléatoire pour rendre l'expérimentation reproductible
+set.seed(278523)
+
+#la méthode qui sera utilisée est la même que plus tôt dans l'objet ctrl
+#validation croisée avec 10 partitions
+nnet_fit_control <- ctrl
+
+#paramétrage pour le réseau de neurones, permet d'identifier les meilleurs paramètres
+nnet_tune_grid <-
+  expand.grid(decay = c(0, 0.01, 0.1),
+              size = c(1:5))
+
+#les combinaisons de paramètres avec lesquelles nous allons faire l'expérimentation du modèle
+nnet_tune_grid
+```
+
+Nous allons faire l'entraînement du modèle de réseau de neurones. Le résultat de l'entraînement est sauvegardé dans un point de restauration RDS. Si le fichier RDS existe déjà, nous n'avons pas besoin de réexécuter l'entraînement à chaque fois.
+```{r, echo=TRUE, results='hide'}
+nnet_file <- "nnet_model.rds"
+
+if (file.exists(nnet_file)) {
+  nnet_model <- readRDS(nnet_file)
+} else {
+
+nnet_model <- train(
+  emissions_moy_annee ~ .,
+  data = train_clean,
+  method = "nnet",
+  preProcess = c("center", "scale"),
+  trControl = nnet_fit_control,
+  tuneGrid = nnet_tune_grid,
+  linout = TRUE
+)
+
+  saveRDS(nnet_model, nnet_file)
+
+}
+```
+
+
+Visualiser les meilleurs paramètres (bestTune) et la performance du modèle. 
+Avec l'aide de cette visualisation, on constate en effet que la combinaison de paramètres bestTune obtiennent la meilleure performance. 
+Avec ces paramètres, on obtient la métrique RMSE la plus basse. C'est ce que l'on souhaite obtenir afin de réduire les erreurs.
+```{r}
+#afficher les meilleurs paramètres
+nnet_model$bestTune
+
+#visualiser la performance du modèle
+plot(nnet_model)
+```
+
+
+### Forêt aléatoire
+
+Le modèle de forêt aléatoire montre une bonne capacité de généralisation grâce à la combinaison de plusieurs arbres de décision. Nous allons faire l'entraînement de ce modèle avec plusieurs paramètres. Le résultat de l'entraînement est sauvegardé dans un point de restauration RDS. Si le fichier RDS existe déjà, nous n'avons pas besoin de réexécuter l'entraînement à chaque fois.
+
+```{r}
+
+# Définir hyperparamètres mtry à tester
+rf_grid <- expand.grid(mtry = c(1, 2, 3, 4, 5))
+
+# ------------------ Random Forest ------------------
+set.seed(278523)
+
+rf_file <- "rf_model.rds"
+if (file.exists(rf_file)) {
+  rf_model <- readRDS(rf_file)
+} else {
+  
+  rf_model <- train(
+    form = as.formula(paste(target, "~", paste(predictors, collapse = "+"))),
+    data = train_clean,
+    method = "rf",
+    preProcess = c("center", "scale"),
+    trControl = ctrl,
+    tuneGrid = rf_grid,
+    importance = TRUE,
+    metric = "RMSE"
+  )
+  
+  saveRDS(rf_model, rf_file)
+  
+}
+```
+
+Visualiser les meilleurs paramètres (bestTune) et la performance du modèle. 
+Avec l'aide de cette visualisation, on constate en effet que la combinaison de paramètres bestTune obtiennent la meilleure performance. 
+Avec ces paramètres, on obtient la métrique RMSE la plus basse. C'est ce que l'on souhaite obtenir afin de réduire les erreurs.
+```{r}
+# Visualiser le bestTune
+rf_model$bestTune
+
+# Visualiser la performance
+plot(rf_model)
+
+```
+
+
+# 2.5 Comparaison des modèles
+
+Nous allons utiliser les données de l'ensemble de test pour comparer la performance de nos modèles. 
+
+Selon les statistiques du jeu d'entraînement, il semble y avoir données aberrantes. Dans les statistiques sur les données des émissions, la médiane est loin de la moyenne et le maximum très éloigné de la médiane et la moyenne. Dans notre cas, MAE est une meilleure métrique que RMSE pour évaluer la performance de nos modèles car elle est moins sensible aux données aberrantes. Elle serait donc une meilleure métrique pour évaluer la performance de nos modèles dans le contexte présent.
+```{r}
+train_clean %>%
+  summary()
+```
+
+
+### KNN
+```{r}
+#calculer les prédictions sur l'ensemble de test avec le modèle knn
+knn_pred <-
+  predict(knn_model,
+          newdata = test_clean)
+
+#Calcul des métriques sur l'ensemble de test pour le modèle knn
+postResample(pred = knn_pred,
+             obs = test_clean$emissions_moy_annee)
+```
+
+### Réseau de neurones
+```{r}
+#calculer les prédictions sur l'ensemble de test avec le modèle nnet
+nnet_pred <-
+  predict(nnet_model,
+          test_clean)
+
+#Calcul des métriques sur l'ensemble de test pour le modèle nnet
+postResample(pred = nnet_pred,
+             obs = test_clean$emissions_moy_annee)
+```
+
+### Forêt aléatoire
+```{r}
+#calculer les prédictions sur l'ensemble de test avec le modèle forêt aléatoire
+rf_pred <-
+  predict(rf_model,
+          test_clean)
+
+#Calcul des métriques sur l'ensemble de test pour le modèle nnet
+postResample(pred = rf_pred,
+             obs = test_clean$emissions_moy_annee)
+```
+
+Le R carré (Rsquared) est le pourcentage de variance expliqué par le modèle de régression. Un plus gros chiffre est donc souhaitable.
+
+Les deux autres métriques sont des métriques d'erreur, on souhaite les garder basses.
+RMSE = racine de l'erreur quadratique moyenne (plus sensible aux valeurs aberrantes)
+MAE = erreur absolue moyenne (moins sensible aux valeurs aberrantes)
+
+Les trois modèles ont des performances intéressantes, le KNN et le réseau de neurones ont des performances semblables, avec le KNN légèrement supérieur.
+
+Le modèle de forêt aléatoire a un performance reste légèrement inférieure à celle du réseau de neurones et du modèle kNN, avec un RMSE plus élevé. Il demeure un modèle robuste, moins sensible aux valeurs extrêmes et utile pour interpréter l’importance des variables prédictives, mais moins performant que les deux autres dans ce cas-ci.
+
+Selon nous, le modèle KNN est la meilleure pour cette situation car nous offre des meilleures métriques de performance et il est plus simple que les deux autres.
+
+# 2.6 Les modèles "sophistiqués" ont-ils appris quelque chose ?
+
+Deux modèles simples ont été créés pour comparer la performance avec nos modèles: 
+- prédire de façon systématique en fonction de la moyenne des émissions (de l'ensemble d'entraînement)
+- faire d'abord un regroupement par catégorie d'entreprise, puis faire comme le point précédent avec la moyenne des émissions par catégorie (de l'ensemble d'entraînement)
+
+### Modèle simple 1
+D'abord nous calculons la moyenne des émissions pour le jeu d'entraînement en entier. Ensuite nous prenons cette moyenne pour le mettre dans nos prédictions. Finalement, nous regardons les métriques de performance de notre modèle sur le jeu de test.
+```{r}
+#calculer la moyenne des émissions du jeu d'entraînement
+moy_emissions <-
+  train_clean %>%
+  summarise(moy_emissions = mean(emissions_moy_annee))
+
+#voir la moyenne trouvée
+moy_emissions
+
+#faire les prédictions
+pred_model1 <-
+rep(moy_emissions, nrow(test_clean))
+
+#Calcul des métriques sur l'ensemble de test pour le modèle nnet
+postResample(pred = as.numeric(pred_model1),
+             obs = test_clean$emissions_moy_annee)
+```
+
+Nous allons comparer la performance avec nos deux modèles précédents qui ont eu la meilleur performance (KNN et réseau de neurone). Il n'est pas possible de calculer le R carré pour ce modèle car il n'y a pas de variance dans les prédictions. 
+
+Comparaison avec KNN et réseau de neuronse:
+Les deux métriques RMSE et MAE sont plus élevées que nos modèles KNN et réseau de neurones, donc ceux-ci restent toujours supérieurs par rapport au modèle simple 1.
+
+
+### Modèle simple 2
+
+Faire d'abord un regroupement par catégorie d'entreprise, puis calculer les émissions moyennes par catégorie. On constate que certaines catégories ont une moyenne d'émissions beaucoup plus élevée que d'autres catégories. Cela pourrait expliquer les données que nous considérions aberrantes auparavant.
+```{r}
+moy_emissions_par_cat <-
+train_clean %>%
+  group_by(categorie) %>%
+  summarise(moy_emission_par_cat = mean(emissions_moy_annee))
+
+moy_emissions_par_cat %>%
+  head(5)
+```
+
+Faire les prédictions sur le jeu de test en fonction de la catégorie de l'entreprise et la moyenne d'émission pour chaque catégorie.
+```{r}
+#jointure entre le jeu de test et les valeurs de émissions moyennes par catégorie
+pred_model2 <-
+  test_clean %>%
+  left_join(moy_emissions_par_cat, by = "categorie")
+
+#vérifier qu'il n'y a pas de valeurs manquantes suite à la jointure
+pred_model2 %>%
+  summarize(na_count = sum(is.na(.)))
+
+#visualiser le résultat qui inclut la vraie valeur émissions et la valeur prédite
+pred_model2 %>%
+  head(5)
+
+#Calcul des métriques sur l'ensemble de test pour le modèle nnet
+postResample(pred = pred_model2$moy_emission_par_cat,
+             obs = test_clean$emissions_moy_annee)
+```
+
+Nous allons comparer la performance avec nos deux modèles précédents qui ont eu la meilleur performance (KNN et réseau de neurone). La performance de ce modèle simple est très intéressante. Les métriques de performance sont supérieures au réseau de neurones. Pour ce qui est du modèle simple 2 en comparaison avec le KNN, les métriques de performance sont comparables.
+
+# Conclusion
+
+Selon nous, le modèle KNN serait le plus optimal en termes de performance car il explique un pourcentage élevé de la variance, avec un MAE et RMSE faibles. Le modèle réseau de neurones offre des métriques de performance semblables, mais la simplicité relative du KNN nous fait opter pour ce modèle en priorité. Ce modèle est optimal pour réduire le taux d'erreur tout en maintenant un pourcentage élevé de performance. De façon générale, le plus nous cherchons à expliquer la variance avec un modèle, le plus le taux d'erreur augmente. Le modèle choisi nous offre donc un bon compromis entre les deux métriques.
+
+Voici notre modèle final KNN sur les données totales (données entraînement et test combinées) :
+```{r}
+set.seed(278523)
+
+donnees_finales <-
+  full_join(test_clean, train_clean)
+
+donnees_finales %>%
+  summarise(na_count = sum(is.na(.)))
+
+ mon_model_final <- train(
+  form = as.formula(paste(target, "~", paste(predictors, collapse = "+"))),
+  data = donnees_finales,
+  method = "knn",
+  trControl = ctrl,
+  tuneGrid = knn_grid,
+  preProcess = c("center", "scale"),
+  metric = "RMSE"
+  )
+ 
+ mon_model_final$bestTune
+ 
+```
+
