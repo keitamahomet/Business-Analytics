@@ -52,3 +52,98 @@ The analysis was conducted using **R** and the **tidyverse** ecosystem.
 
 The dataset was read using the `read_csv()` function from the **readr** package:
 
+
+A **relative path** was used for reproducibility.  
+The function `problems()` was used to verify if any parsing issues occurred during data import.
+
+The first three rows of the dataset were displayed to verify the successful loading of the data.
+
+---
+
+# Missing Values Analysis
+
+A systematic verification of missing values was performed for **all columns** in the dataset.
+
+Particular attention was given to the following critical variables:
+
+- `ID`
+- `LATITUDE`
+- `LONGITUDE`
+
+These fields are expected to contain **no missing values**, since they are essential for identifying and locating trees.
+
+Missing values were identified programmatically using tidyverse functions.
+
+---
+
+# Statistical Analysis
+
+The statistical analysis focused on tree trunk diameter measurements recorded at **breast height (DHP)**.
+
+The following statistics were calculated **by tree type**:
+
+- Mean diameter
+- Standard deviation
+- Minimum diameter
+- Maximum diameter
+
+These statistics provide insights into the **size distribution of different tree species**.
+
+---
+
+# Extended Statistical Analysis
+
+The same statistical measures were computed again, but this time grouping the data by:
+
+- **Measurement position**
+- **Tree type**
+
+This allows comparison between different measurement methods and tree categories.
+
+---
+
+# Identifying Potential Locations for Tree Enthusiast Outings
+
+To determine the most suitable locations for a group outing, the dataset was filtered to include only:
+
+- **Public properties**
+
+The number of trees was then counted by **topographical location (address)**.
+
+Additionally, the number of:
+
+- **Deciduous trees**
+- **Coniferous trees**
+
+was calculated for each location.
+
+Finally, the **10 locations with the highest number of trees** were identified as potential destinations for the group outing.
+
+---
+
+# Technologies Used
+
+- R
+- tidyverse
+- dplyr
+- readr
+- ggplot2
+
+---
+
+# Key Skills Demonstrated
+
+- Data Cleaning and Transformation
+- Exploratory Data Analysis (EDA)
+- Handling Missing Values
+- Statistical Analysis
+- Data Aggregation and Grouping
+- Reproducible Data Analysis using R Markdown
+
+---
+
+# Author
+
+Mahomet Limenia Jean-Yves J. Keita  
+MBA – Supply Chain Management & Business Analytics  
+Université Laval – Québec, Canada
