@@ -1,0 +1,174 @@
+---
+title: |
+  Travail pratique 3 - Analytique prescriptive
+author: |
+ - Équipe 8: 
+ - **MARTIN, SABRINA** (Matricule: 537381603)
+ - **KEITA, MAHOMET LIMENIA JEAN-YVES** (Matricule: 537175293)
+date: 2025-11-19
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: journal
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1 - Programmation mathématique (investissements)
+
+Chargement des librairies tidyverse [@tidyverse] & CVXR [@CVXR] qui seront utilisées pour répondre à la question.
+```{r}
+library(tidyverse)
+library(CVXR)
+```
+
+## Introduction au problème
+
+Nous avons 550 000$ disponibles à investir au début de l'an 1 (P3 / C2). L'objectif est de maximiser le montant en main à la fin de l'an 8 (P5).
+Il y a 4 options d'investissements parmi lesquelles nous devons choisir, et nous devrons aussi choisir quel montant investir dans chaque option:
+
+1. un investissement d’une durée (horizon) de 3 ans (P1) à 4 % (P2), disponible au début de l’an 3 (P4);
+2. un investissement d’une durée de 5 ans (P1) à 5 % (P2), disponible au début de l’an 1 (P4);
+3. un investissement d’une durée de 3 ans (P1) à 5 % (P2), disponible au début de l’an 6 (P4);
+4. des investissements d’une durée de 2 ans (P1) à 2 % (P2), disponible au début de l’an 1, de l’an 3, de l’an 5 et de
+l’an 7 (P4). (voir comme 4 placements différents)
+
+En réalité, comme l'option 4 contient 4 différents investissements, il faut plutôt considérer un total de 7 options d'investissements disponibles (P6). Aucun argent ne peut être emprunté pour atteindre l'objectif (C1).
+
+
+Pour aider à visualiser les options de placement et leur horizons, voici un graphique avec les années de début et de fin de chaque option.
+
+```{r}
+placements_horizon <- data.frame(
+  Placements = paste0("Z_", 1:7),
+  Debut = c(3, 1, 6, 1, 3, 5, 7),
+  Duree = c(3, 5, 3, 2, 2, 2, 2))
+
+placements_horizon <-
+  placements_horizon %>%
+  mutate(Fin = c(Debut + Duree))
+
+placements_horizon
+
+placements_horizon %>%
+  ggplot() + 
+  geom_segment(aes(
+    x = Debut,
+    xend = Fin,
+    y = Placements,
+    yend = Placements
+    ),
+    linewidth = 10) +
+  scale_y_discrete(limits = rev) +
+  scale_x_continuous(limits = c(1, 9), breaks = c(1:9)) +
+  labs(
+    title = "Options de placements et leur horizon",
+    x = "Années",
+    y = "Placements"
+  )
+  
+```
+
+
+## 1.1 - Modélisation
+
+Définir les paramètres, variables et contraintes du modèle. Pour aider à résoudre le problème, deux variables de décision sont nécessaires: l'argent investi dans chaque option de placement (V2), ainsi que l'argent disponible à chaque période ou le flux monétaire (V1 / C3).
+```{r}
+#P1: horizon de chaque option, dans l'ordre
+pDuree <- c(3, 5, 3, 2, 2, 2, 2)
+#P2: rendement de chaque option, dans l'ordre
+pRendement <- c(1.04, 1.05, 1.05, 1.02, 1.02, 1.02, 1.02)
+#P3: budget initial au début de l'an 1
+pBudgetmax <- 550000
+#P4: l'année que chaque placement débute, dans l'ordre
+pDebut <- c(3, 1, 6, 1, 3, 5, 7)
+#P5: horizon total
+pDureeMax <- 8
+#P6: nombre de placements différents
+pNbOptions <- 7
+
+#V1: argent disponible au début de chaque période (flux)
+vY <- Variable(pDureeMax + 1, name = "Y")
+
+#V2: combien investir dans chaque option de placement
+vZ <- vstack(
+  Variable(name = "Z_1"), #placement 1
+  Variable(name = "Z_2"), #placement 2
+  Variable(name = "Z_3"), #placement 3
+  Variable(name = "Z_4"), #placement 4 à l'an 1
+  Variable(name = "Z_5"), #placement 4 à l'an 3
+  Variable(name = "Z_6"), #placement 4 à l'an 5
+  Variable(name = "Z_7")  #placement 4 à l'an 7
+)
+
+#Contraintes
+constraints <- list()
+
+#C1: argent disponible et argent investi ne doit pas être négatif, aucun emprunt
+constraints <- c(constraints, vY >= 0, vZ >= 0) 
+
+#C2: argent disponible au début période 1 est le budget initial
+constraints <- c(constraints, vY[1] == pBudgetmax)
+
+#C3: flux monétaire au début de chaque période
+#argent restant de la période précédente s'il n'a pas été utilisé + les entrées - les sorties
+constraints <- c(constraints,
+  vY[2] == vY[1] - (vZ[2] + vZ[4]),                   #an 2, an 1 moins les placements faits an 1, aucun nouveau
+  vY[3] == vY[2] + vZ[4] * pRendement[4] - (vZ[1] + vZ[5]),         #an 3, un placement termine, deux débutent
+  vY[4] == vY[3],                                                   #an 4, aucun placement ne termine ni débute
+  vY[5] == vY[4] + vZ[5] * pRendement[5] - vZ[6],                   #an 5, un placement termine, un débute
+  vY[6] == vY[5] + vZ[1] * pRendement[1] + vZ[2] * pRendement[2] - vZ[3], #an 6, 2 se terminent, un débute
+  vY[7] == vY[6] + vZ[6] * pRendement[6] - vZ[7],                   #an 7, un placement termine, un débute
+  vY[8] == vY[7],                                                   #an 8, aucun placement ne termine ni débute
+  vY[9] == vY[8] + vZ[3] * pRendement[3] + vZ[7] * pRendement[7]    #an 9, deux placements terminent (fin an 8)
+)
+
+#Fonction objectif
+#maximiser l'argent disponible au début de l'an 9, c'est à dire l'argent disponible à la fin de l'an 8
+objective <- Maximize(vY[9])
+
+# modèle mathématique
+problem <- Problem(objective, constraints)
+
+# Résoudre avec le solveur
+result <- psolve(problem, solver = "GLPK_MI")
+```
+
+## 1.2 Résolution
+
+Consulter la solution trouvée par le solveur et le statut du solveur. La solution trouvée est optimale; elle maximise le montant en main à la fin de l'an 8 (argent investi + intérêts générés). Consulter le résultat de la fonction objectif.
+```{r}
+#statut du solveur
+cat('Statut retourné par le solveur:', 
+    result$status,
+    '\n')
+
+#résultat de la fonction objectif
+cat(sprintf("Valeur de la fonction objectif: %.2f\n", result$value))
+
+```
+Consulter le détail de la solution pour chaque variable:
+```{r}
+#argent investi dans chaque option de placement
+solution <- 
+  tibble(variable = map(CVXR::variables(vZ), "name"),
+         valeur = round(result$getValue(vZ), 2)) %>%
+  mutate(variable = as.character(variable))
+
+solution
+
+#flux monétaire
+solution2 <- 
+  tibble(variable = map(CVXR::variables(vY), "name"),
+         valeur = round(result$getValue(vY), 2)) %>%
+  mutate(variable = as.character(variable)) %>%
+  mutate(année = c(1:9), .after = variable)
+
+solution2
+```
+
+La solution optimale trouvée par le solveur est donc d'investir la totalité du 550 000 dollars dans le placement Z_4 à l'an 1, puis à son échéance à l'an 3 (durée 2 ans), de réinvestir cette somme plus les intérêts dans le placement Z_1. Ensuite, à l'échance du placement Z_1 à l'an 6 (durée 3 ans), nous réinvestirons la totalité de cette somme plus les intérêts dans le placement Z_3 (durée de 3 ans). Avec cette stratégie, nous aurons 612 612 dollars à la fin de la période 8 (incluant le capital investi au départ et les rendements générés). On constate également dans le flux monéraire que l'argent disponible était réinvesti en entier à toutes les périodes.
