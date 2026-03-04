@@ -1,0 +1,144 @@
+---
+title: |
+  MQT7021 - Analytique d'affaires
+  Travail pratique 1 - Analytique descriptive
+  Automne 2025
+  Université Laval - FSA
+  Enseignant: Pr Michael Morin
+author: |
+  **NITCHEU TCHAMGOUE, Paulin** (Matricule: 536968218)
+  **MARTIN, SABRINA** (Matricule: 537381603)
+  **KEITA, MAHOMET LIMENIA JEAN_YVES** (Matricule: 537175293)
+  **Date de remise:**  8 Octobre 2025
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    theme: readable
+    highlight: kate
+    df_print: paged
+    code_folding: show
+    code_download: true
+    self_contained: true
+mathjax: default
+lang: fr
+linkcolor: blue
+geometry: margin=2.5cm
+mainfont: "Times New Roman"
+bibliography: references.bib
+fontsize: 11pt
+---
+
+```{r setup}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  results = ''
+)
+```
+
+
+
+# Question 1 - Les arbres du Québec
+
+Chargement de la librairie tidyverse {@tidyverse} qui sera utilisée pour répondre à cette question.
+
+```{r}
+# Chargement de l'outils pour la manipulation 
+library(tidyverse)
+```
+
+## Lecture du fichier
+
+Importation du fichier csv et création de l'objet df_arbres à partir des données d'arbres du Québec provenent de {@ArbresQC}.
+
+```{r}
+# importation de notre jeu de donnée dans df_arbres
+df_arbres <- read_csv("./data/arbres_qc/vdq-arbrerepertorie.csv")
+
+```
+
+Vérification s'il y a eu des problèmes lors de la lecture du fichier avec la fonction problems. Aucun problème ne semble s'être produit lors du chargement.
+
+```{r}
+problems(df_arbres)
+```
+
+Affichage des 3 premières lignes des données lues avec la fonction head.
+
+```{r}
+
+df_arbres %>%
+ head(3)
+```
+
+## Valeurs manquantes
+
+Vérification du nombre total de valeurs manquantes.
+
+```{r}
+df_arbres %>% summarize(na_count = sum(is.na(.)))
+```
+
+Affichage de 3 lignes contenant des valeurs manquantes. Pour ces 3 lignes, les valeurs manquantes sont dans la colonne DATE_PLANTE.
+
+```{r}
+valeur_manquante <- df_arbres %>% filter(if_any(everything(), is.na))
+
+valeur_manquante %>%
+ head(3)
+```
+
+Vérifier le nombre de valeurs manquantes par colonne et afficher le résultat. On constate qu'il manque beaucoup de valeurs dans la colonne DATE_PLANTE, mais il y a plusieurs autres colonnes qui ont quelques valeurs manquantes. Les colonnes ID, TYPE_LIEU, LATITUDE et LONGITUDE n'ont pas de valeurs manquantes.
+
+```{r}
+valeur_manquante_par_col <-
+valeur_manquante %>%
+  summarize(across(everything(), ~sum(is.na(.))))
+
+valeur_manquante_par_col
+```
+
+## Statistiques sur les arbres et lieux de sortie possibles
+
+Trouver les statisques diamètre moyen, écart type, minimum et maximum pour les positions à hauteurs de poitrine seulement lorsque les données sont groupées par type d'arbre. Un premier filtre a été appliqué pour garder seulement les DHP (Diamètre Hauteur Poitrine) et pour retirer les observations qui n'ont pas de type d'arbre ni de diamètre étant donné que ce sont des variables essentielles pour fins d'analyse. On constate que certains arbres ont un diamètre minimum de 0, on peut assumer que ce sont probablement des arbres qui ont été plantés récemment et n'atteignent pas encore la hauteur poitrine. Le diamètre moyen est plutôt semblable entre les conifères et les feuillus, par contre l'écart type et le maximum des feuillus sont beaucoup plus élevés que les conifères.
+
+```{r}
+df_arbres %>%
+  filter(POSITION_MESURE == "DHP", !is.na(TYPE_ARBRE), !is.na(DIAMETRE)) %>%  
+  group_by(TYPE_ARBRE) %>%              # nous avoons groupé par type d'arbre     
+  summarize("DHP MOYEN" = mean(DIAMETRE), 
+            "ECART TYPE DHP" = sd(DIAMETRE), 
+            "DHP MIN" = min(DIAMETRE), 
+            "DHP MAX" = max(DIAMETRE)
+            )
+
+```
+
+Une analyse statistique similaire, mais cette fois ci par type arbre et position de la mesure diamètre. Pour cette analyse, nous avons retiré les observations qui n'ont pas de type d'arbre, pas de diamètre, ni de position de la mesure car elles sont essentielles pour l'analyse. Tel que supposé plus tôt, on constate effectivement que les stastiques varient grandement selon la hauteur de la mesure. Les mesures prisent à hauteur de poitrine sont plus élevées que les mesures prises à hauteur du sol, ce qui est tout à fait logique.
+
+```{r}
+df_arbres %>%
+  filter(!is.na(TYPE_ARBRE), 
+         !is.na(DIAMETRE), 
+         !is.na(POSITION_MESURE)) %>%
+  group_by("TYPE D'ARBRE" = TYPE_ARBRE, 
+           "POSITION MESURE" = POSITION_MESURE) %>%
+  summarize("DIAMETRE MOYEN" = mean(DIAMETRE), 
+            "ECART TYPE DHP" = sd(DIAMETRE), 
+            "DIAMETRE MIN" = min(DIAMETRE), 
+            "DIAMETRE MAX" = max(DIAMETRE))
+```
+
+Compter le nombre de feuillus et conifères des propriétés publique par lieu. Afficher les 10 endroits avec le plus d'arbres. Les dix lieux publics avec le plus d'arbres seront des endroits parfait pour la sortie de groupe. La plupart des arbres dans ces endroits sont des feuillus alors si jamais le groupe n'a pas le temps de tous les visiter, nous devrons nous assurer d'inclure au moins un endroit qui est reconnu pour ses conifères tel que le Parc linéaire de la Rivière-Saint-Charles.
+
+```{r}
+df_arbres %>%
+  filter(TYPE_PROP == "Public") %>%
+  group_by(NOM_TOPOGRAPHIE) %>%
+  count(TYPE_ARBRE) %>%
+  arrange(desc(n))
+```
