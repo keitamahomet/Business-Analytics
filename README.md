@@ -1,11 +1,3 @@
-<p align="center">
-<img src="img/photo.jpg" width="200">
-</p>
-
-<h1 align="center">Mahomet Keita</h1>
-<p align="center">
-Business Analytics | Data Science | Supply Chain Analytics
-</p>
 
 # Business Analytics Portfolio
 
