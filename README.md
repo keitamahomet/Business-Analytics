@@ -179,5 +179,6 @@ Mahomet Limenia Jean-Yves J. Keita
 
 Email: [mlkei4@ulaval.ca](mailto:mlkei4@ulaval.ca)
 
-LinkedIn: (Add your LinkedIn profile link here)
+LinkedIn: www.linkedin.com/in/mahometkeita 
+
 
