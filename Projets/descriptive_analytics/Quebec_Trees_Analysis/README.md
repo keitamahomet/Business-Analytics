@@ -1,123 +1,101 @@
 # Quebec Trees Analysis
 
-## Project Context
+## Project Overview
 
-This project analyzes a dataset of trees located in the city of **Québec**, using open data provided by the **Ville de Québec (2025)**.  
+This project analyzes a dataset of trees located in **Québec City**, using open data provided by the **Ville de Québec**.
 
-The objective of the analysis is to identify locations in Québec City with the **highest concentration of trees** in order to help organize a potential outing for a group of tree enthusiasts.  
+The objective of the analysis is to identify **locations containing the largest number of trees** in order to help plan a potential outing for a group of tree enthusiasts (ADADQC – Amateurs d’Arbres de Québec).
 
-Additionally, the analysis explores **statistical characteristics of trees by type**, which may be of interest to participants of the ADADQC group (Amateurs d'Arbres de Québec).
+In addition, the project computes several **descriptive statistics on tree characteristics**, particularly trunk diameter measurements, grouped by tree type.
 
-This project was completed as part of the **MBA in Business Analytics at Université Laval**.
-
----
-
-# Dataset Description
-
-The dataset contains detailed information about trees located throughout Québec City.
-
-Each observation represents a **single tree** and includes the following variables:
-
-| Variable | Description |
-|--------|-------------|
-| ID | Unique identifier for each tree |
-| TYPE_LIEU | Type of location where the tree is planted |
-| NOM_LATIN | Latin name of the tree |
-| NOM_FRANCAIS | French name of the tree |
-| TYPE_ARBRE | Type of tree (e.g., deciduous or conifer) |
-| DIAMETRE | Diameter of the trunk in centimeters |
-| POSITION_MESURE | Position where the diameter was measured |
-| MULTI_TRONC | Boolean indicator of whether the tree has multiple trunks |
-| DATE_PLANTE | Tree planting date (when available) |
-| TYPE_PROP | Property type (public or private) |
-| NOM_TOPOGRAPHIE | Address or topographical location |
-| LATITUDE | Latitude coordinate |
-| LONGITUDE | Longitude coordinate |
-
-### Measurement Positions
-
-Diameter measurements may correspond to different measurement positions:
-
-- **DHP** — Diameter at breast height  
-- **DHS** — Diameter at stump height  
-- **M** — Mean diameter for multi-trunk trees
+This project was completed as part of the **MQT7021 – Business Analytics course** in the **MBA in Business Analytics program at Université Laval**.
 
 ---
 
-# Data Processing
+# Dataset
 
-The analysis was conducted using **R** and the **tidyverse** ecosystem.
+The dataset comes from the **open data portal of the City of Québec** and contains detailed information about trees located throughout the city.
 
-## Data Import
+Each observation represents a **single tree**.
 
-The dataset was read using the `read_csv()` function from the **readr** package:
+The dataset includes variables such as:
+data/vdq-arbrerepertorie.csv
 
+- Tree species (Latin and French names)
+- Tree type (deciduous or conifer)
+- Trunk diameter
+- Measurement position
+- Property type (public or private)
+- Location (address)
+- Geographic coordinates (latitude and longitude)
 
-A **relative path** was used for reproducibility.  
-The function `problems()` was used to verify if any parsing issues occurred during data import.
-
-The first three rows of the dataset were displayed to verify the successful loading of the data.
-
----
-
-# Missing Values Analysis
-
-A systematic verification of missing values was performed for **all columns** in the dataset.
-
-Particular attention was given to the following critical variables:
-
-- `ID`
-- `LATITUDE`
-- `LONGITUDE`
-
-These fields are expected to contain **no missing values**, since they are essential for identifying and locating trees.
-
-Missing values were identified programmatically using tidyverse functions.
+The data file used in this project is located in:
 
 ---
 
-# Statistical Analysis
+# Objectives
 
-The statistical analysis focused on tree trunk diameter measurements recorded at **breast height (DHP)**.
+The main objectives of this analysis are:
 
-The following statistics were calculated **by tree type**:
+1. Load the dataset using a **relative path**.
+2. Verify whether any **parsing issues** occurred during data import.
+3. Identify **missing values** across all variables.
+4. Compute descriptive statistics on tree diameter.
+5. Identify **public locations with the highest number of trees**.
+
+---
+
+# Methodology
+
+The analysis was performed using **R** and the **tidyverse** packages.
+
+The workflow includes the following steps:
+
+### 1. Data Import
+
+The dataset was loaded using the `read_csv()` function from the **readr** package.
+
+The function `problems()` was used to verify whether any issues occurred during the import process.
+
+---
+
+### 2. Missing Value Analysis
+
+The number of missing values was calculated for each column.
+
+Special attention was given to the following variables, which should **not contain missing values**:
+
+- ID
+- LATITUDE
+- LONGITUDE
+
+---
+
+### 3. Statistical Analysis
+
+Descriptive statistics were calculated for trunk diameter measurements taken at **breast height (DHP)**.
+
+The following statistics were computed:
 
 - Mean diameter
 - Standard deviation
 - Minimum diameter
 - Maximum diameter
 
-These statistics provide insights into the **size distribution of different tree species**.
+These statistics were calculated:
+
+- By **tree type**
+- By **tree type and measurement position**
 
 ---
 
-# Extended Statistical Analysis
+### 4. Identifying Potential Outing Locations
 
-The same statistical measures were computed again, but this time grouping the data by:
+The analysis focused on **public properties only**.
 
-- **Measurement position**
-- **Tree type**
+Trees were counted by **topographical location (address)** in order to determine which locations contain the highest number of trees.
 
-This allows comparison between different measurement methods and tree categories.
-
----
-
-# Identifying Potential Locations for Tree Enthusiast Outings
-
-To determine the most suitable locations for a group outing, the dataset was filtered to include only:
-
-- **Public properties**
-
-The number of trees was then counted by **topographical location (address)**.
-
-Additionally, the number of:
-
-- **Deciduous trees**
-- **Coniferous trees**
-
-was calculated for each location.
-
-Finally, the **10 locations with the highest number of trees** were identified as potential destinations for the group outing.
+The **10 locations with the largest number of trees** were identified as potential outing destinations.
 
 ---
 
@@ -128,17 +106,29 @@ Finally, the **10 locations with the highest number of trees** were identified a
 - dplyr
 - readr
 - ggplot2
+- R Markdown
 
 ---
 
-# Key Skills Demonstrated
+# Project Structure
+Quebec_Trees_Analysis
+│
+├── README.md
+├── trees_analysis.Rmd
+├── trees_analysis.html
+└── data
+└── vdq-arbrerepertorie.csv
 
-- Data Cleaning and Transformation
-- Exploratory Data Analysis (EDA)
-- Handling Missing Values
-- Statistical Analysis
-- Data Aggregation and Grouping
-- Reproducible Data Analysis using R Markdown
+---
+
+# Skills Demonstrated
+
+- Data cleaning
+- Data wrangling with tidyverse
+- Missing data analysis
+- Descriptive statistics
+- Data aggregation and grouping
+- Reproducible data analysis with R Markdown
 
 ---
 
