@@ -1,0 +1,755 @@
+---
+title: |
+  Travail pratique 2 - Analytique prédictive
+author: |
+ - Équipe 14: 
+ - **MARTIN, SABRINA** (Matricule: 537381603)
+ - **KEITA, MAHOMET LIMENIA JEAN-YVES** (Matricule: 537175293)
+ - Date de remise: 2025-10-29
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# 1. Forage de données : John Johnson chez Willmart
+
+John Johnson est gestionnaire chez Willmart. Il cherche à mieux connaître les données sur l'article qui est meilleur vendeur dans leurs magasins afin de pouvoir prendre les bonnes décisions en tant que gestionnaire. Plus précisément, il cherche à savoir s'il y a un lien entre les ventes de cet item et la météo (température maximale et les précipitations).
+
+CChargement des librairies nécessaires pour répondre à cette question:
+tidyverse {@tidyverse}
+modelr {@modelr}
+lubridate {@lubridate}
+stats {@stats}
+GGally {@GGally}
+```{r}
+library(tidyverse)
+library(modelr)
+library(lubridate)
+library(stats)
+library(GGally)
+```
+
+# 1.1 Lecture des données
+
+Lecture des fichiers csv à partir d'un dossier zip à l'aide d'un chemin relatif. Les données proviennent de  {@motl2015ctu}.
+```{r}
+willmart <- read_csv("./data/willmart.zip")
+```
+
+Indiquer s'il y a eu des problèmes lors de la lecture avec la fonction problems. Il n'y a pas eu de problèmes à la lecture du fichier.
+```{r}
+readr::problems(willmart)
+```
+
+Afficher les 3 premières lignes des données lues.
+```{r}
+willmart %>%
+  head(3)
+```
+
+Afficher le nombre de d'observations lues dans le jeu de données.
+```{r}
+willmart %>%
+  count()
+```
+
+# 1.2 Data cleaning et valeurs manquantes
+
+John ne s'intéresse qu'aux magasins de la région qui sont liés à la station météo 3. Nous allons donc faire un filtre sur les données pour ne conserver que celles qui sont en lien avec la station météo 3. Le format de la date est aussi modifié pour pouvoir avoir une vraie date calendrier qui sera plus facile à manipuler plus tard. Le nombre d'observations a considérablement diminué pour notre analyse. Les données sont déjà rangées, chaque colonne correspond bien à une variable.
+```{r}
+willmart_clean_data <- 
+  willmart %>%
+  filter(stationId == 3) %>%
+  mutate(Date = as.Date(date), .before = date) %>%
+  select(-stationId, -date)
+
+#afficher données après le filter
+willmart_clean_data %>%
+  head(3)
+
+#compter le nombre d'observations
+willmart_clean_data %>%
+  count()
+
+```
+
+Vérifier le nombre de valeurs manquantes et dans quelles colonnes elles se situent. Osberver quelques lignes avec des valeurs manquantes.
+```{r}
+
+#compter le nombre de NA
+willmart_clean_data %>% summarize(na_count = sum(is.na(.)))
+
+#voir le nombre de NA par colonnes
+willmart_clean_data %>%
+  summarize(across(everything(), ~sum(is.na(.))))
+
+#voir les lignes avec des valeurs manquantes
+valeur_manquante <- willmart_clean_data %>% filter(if_any(everything(), is.na))
+
+valeur_manquante %>%
+  head(3)
+```
+
+Pour la suite de l'analyse, nous aurons besoin des variables température maximale et prépicipations totale. Nous allons donc retirer les observations qui ont des valeurs manquantes de température maximale ou précipitations totales. Les valeurs manquantes restantes sont dans les colonnes température moyenne et quantité de neige, comme nous n'avons pas besoin de ces colonnes pour l'analyse elles seront retirées. Cela permet de retirer les valeurs manquantes du jeu de données sans retirer des observations. Suite à ces manipulations, il n'y a plus de valeurs manquantes.
+```{r}
+#filtrer pour retirer les observations qui ont valeurs manquantes tmax et preciptotal
+#select pour retirer les colonnes snowfall et tavg qui ont aussi des valeurs manquantes
+willmart_clean_data2 <-
+willmart_clean_data %>%
+  select(-snowfall, -tavg) %>%
+  drop_na()
+
+#affichage de la nouvelle table
+willmart_clean_data2 %>%
+  head(3)
+
+#vérifier le nombre de valeurs manquantes et le nombre de lignes
+willmart_clean_data2 %>%
+  summarize(
+    na_count = sum(is.na(.)), n = n())
+```
+
+
+Faire les conversions en mesures métriques. 
+
+```{r}
+willmart_data_converti <-
+willmart_clean_data2 %>%
+  mutate(preciptotal_mm = preciptotal * 25.4, .after = preciptotal) %>%
+  mutate(avgspeed_kmh = avgspeed * 1.609344) %>%
+  mutate(tmax_c = ((tmax - 32) * 5 / 9), .after = tmax) %>%
+  mutate(tmin_c = ((tmin - 32) * 5 / 9), .after = tmin)
+
+willmart_data_converti %>%
+  head(3)
+```
+
+# 1.3 Transformations et visualisations 
+
+John souhaite avoir quelques visualisations différentes pour trouver l'item qui se vend le plus. 
+
+Nous allons d'abord traiter les données en regroupant par numéro d'article et en faisant la somme des ventes pour tous les numéros d'articles. Ensuite, nous avons retiré les articles qui n'ont pas eu de ventes avec filtre. Un tri est effectué pour les mettre en ordre du plus gros nombre de ventes au plus petit. Ensuite, l'ajout d'une colonne pourcentage des ventes, et un filtre pour garder seulement les articles qui ont eu plus d'un pourcent des ventes totales. Cela nous permet de garder seulement les articles qui ont eu un nombre considérable de ventes pour les visualiser.
+
+```{r}
+sales_by_item <-
+willmart_data_converti %>%
+  group_by(itemId) %>%
+  summarize(sales = sum(units)) %>%
+  filter(sales >= 1) %>%
+  arrange(desc(sales)) %>%
+  mutate(percent = round(sales / sum(sales) * 100, 2)) %>%
+  filter(percent >= 1)
+
+sales_by_item
+
+```
+
+Deux visualisations différentes permettent de constater que les ventes de l'article numéro 44 sont beaucoup plus élevées que les autres articles.
+```{r}
+
+sales_by_item %>%
+  ggplot(aes(x = factor(itemId), y = sales, fill = factor(itemId))) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(
+    breaks = c(10000, 20000, 30000, 40000, 50000, 100000, 200000, 250000),
+    labels = c("10k", "20k", "30k", "40k", "50k", "100k", "200k", "250k")
+  ) +
+  labs(fill = "Numéro d'article", 
+       x = "Numéro d'article", 
+       y = "Ventes",
+       title = "Ventes totales par numéro d'article") 
+
+sales_by_item %>%
+  ggplot(aes(x = factor(1), y = percent, fill = factor(itemId))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(percent, "%")),
+            position = position_stack(vjust = 0.5),
+            color = "white",
+            size = 4,
+            check_overlap = TRUE) +
+  coord_polar(theta = "y") +
+  labs(x = " ", y = " ",
+       fill = "Numéro d'article",
+       title = "Ventes par article en pourcentage des ventes totales") +
+  theme(axis.ticks = element_blank(),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        panel.background = element_blank()
+        )
+```
+
+John souhaite avoir plus d'informations par rapport aux ventes de l'article 44. Nous appliquons un filtre pour garder seulement les observations de l'article 44. Un autre filtre permet de retirer les observations qui n'ont eu aucune vente de l'article 44. Ensuite, nous effectuons une vérification s'il y a des valeurs manquantes et le nombre de lignes suite au traitement.
+```{r}
+#plus besoin de la colonne itemID car nous gardons seulement les donnees pour l'article 44
+#filtrer pour garder les ventes de plus de 1 unité de l'article 44
+#retirer la colonne itemId car nous n'en avons plus besoin
+donnees_article_44 <-
+willmart_data_converti %>%
+  filter(itemId == "44",
+         units >= 1
+         ) %>%
+  select(-itemId)
+
+donnees_article_44 %>%
+  head()
+
+donnees_article_44 %>%
+  summarize(
+    na_count = sum(is.na(.)), n = n())
+```
+
+John cherche des réponse à deux questions:
+1. Quelles sont les ventes totales de l'article en fonction de la température maximale pour chacune des dates?
+2. Quelles sont les ventes totales de l'item en fonction des précipitations totales pour chacune des dates?
+
+Afin de pouvoir répondre à ces questions, nous allons d'abord traiter les données avant de les visualiser. Nous voulons savoir le nombre de ventes totales par date ainsi que la météo par date.
+
+```{r}
+#Pour les ventes de l'article 44, garder  seulement les observations qui ont plus d'une unité vendue
+#faire le total des ventes par date et un tri sur la date
+sales_44_by_date <-
+donnees_article_44 %>%
+  filter(units >= 1) %>%
+  group_by(Date) %>%
+  summarise(Ventes = sum(units)) %>%
+  arrange(Date)
+
+#voir les 3 premières lignes de cette table
+sales_44_by_date %>%
+  head(3)
+
+#compter le nombre de lignes de cette table
+sales_44_by_date %>%
+  count()
+
+#trouver la météo par date
+#supprimer les lignes en double
+meteo_par_date <-
+  donnees_article_44 %>%
+  select(-storeId, -units) %>%
+  arrange(Date) %>%
+  distinct()
+
+meteo_par_date %>%
+  head(3)
+
+meteo_par_date %>%
+  count()
+
+#joindre les deux tables ensemble pour avoir le nombre total de ventes et les données de météo par date
+#séparer la date en trois colonnes car nous aurons besoin plus tard de faire une visualisation par mois
+ventes_meteo_par_date <-
+  sales_44_by_date %>% left_join(meteo_par_date, by = "Date") %>%
+  separate_wider_delim(Date, delim = "-", names = c("Année", "Mois", "Jour"), cols_remove = FALSE)
+
+ventes_meteo_par_date %>%
+  head()
+
+#vérifications valeurs manquantes et nombre de lignes suite à la jointure
+ventes_meteo_par_date %>%
+  summarize(
+    na_count = sum(is.na(.)), n = n())
+```
+
+### Quelles sont les ventes totales de l'article en fonction de la température maximale pour chacune des dates ?
+
+À première vue, il ne semble pas y avoir de lien entre la température maximale et le nombre de ventes par jour. 
+Nous constatons qu'il y a eu des journées avec ventes élevés peu importe qu'il ait fait froid ou chaud. 
+Nous remarquons aussi que plusieurs journées n'ont pas eu de ventes de l'article 44 entre les mois d'aout 2013 à octobre 2014. 
+Il serait intéressant de savoir pourquoi. Est-ce qu'il y a eu des problèmes d'approvisionnement durant ces mois ?
+
+```{r}
+graph_2012_temp <-
+ventes_meteo_par_date %>%
+  filter(Année == 2012) %>%
+  ggplot(aes(x = factor(Jour), y = Ventes, fill = tmax_c)) +
+  scale_fill_gradient(low = "yellow", high = "red", limits = c(-10, 45)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(c("Mois")) +
+  labs(x = "Date", 
+       y = "Ventes",
+       title = "Ventes totales de l'article 44 par jour et mois en 2012",
+       subtitle = "en fonction de la température maximale (°C)",
+       fill = "Température maximale (°C)") +
+  theme(axis.text.x = element_blank())
+
+graph_2012_temp
+
+graph_2013_temp <-
+ventes_meteo_par_date %>%
+  filter(Année == 2013) %>%
+  ggplot(aes(x = factor(Jour), y = Ventes, fill = tmax_c)) +
+  scale_fill_gradient(low = "yellow", high = "red", limits = c(-10, 45)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(c("Mois")) +
+  labs(x = "Date", 
+       y = "Ventes",
+       title = "Ventes totales de l'article 44 par jour et mois en 2013",
+       subtitle = "en fonction de la température maximale (°C)",
+       fill = "Température maximale (°C)") +
+  theme(axis.text.x = element_blank())
+
+graph_2013_temp
+
+graph_2014_temp <-
+ventes_meteo_par_date %>%
+  filter(Année == 2014) %>%
+  ggplot(aes(x = factor(Jour), y = Ventes, fill = tmax_c)) +
+  scale_fill_gradient(low = "yellow", high = "red", limits = c(-10, 45)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(c("Mois")) +
+  labs(x = "Date", 
+       y = "Ventes",
+       title = "Ventes totales de l'article 44 par jour et mois en 2014",
+       subtitle = "en fonction de la température maximale (°C)",
+       fill = "Température maximale (°C)") +
+  theme(axis.text.x = element_blank())
+
+graph_2014_temp
+
+```
+
+### Quelles sont les ventes totales de l'item en fonction des précipitations totales pour chacune des dates?
+
+Pour offrir des graphiques semblables, l'échelle du gradient de couleur a été modifiée de 0mm à 50mm de pluie afin de la standardiser. 
+Par contre, certaines journées en 2012 ont eu plus de 50mm (elles sont en noir).
+Avec ces visualisations, nous constatons qu'il semble avoir moins de ventes les journées qui ont beaucoup de précipitations.
+Malheureusement, nos graphiques ne permettent pas de savoir si les journées qui n'ont pas du tout eu de ventes du tout ont un lien avec la météo.
+
+```{r}
+graph_2012_precip <-
+ventes_meteo_par_date %>%
+  filter(Année == 2012) %>%
+  ggplot(aes(x = factor(Jour), y = Ventes, fill = preciptotal_mm)) +
+  scale_fill_gradient(low = "cyan", high = "blue", limits = c(0, 50)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(c("Mois")) +
+  labs(x = "Date", 
+       y = "Ventes",
+       title = "Ventes totales de l'article 44 par jour et mois en 2012",
+       subtitle = "en fonction des précipitations totales (mm)",
+       fill = "Précipitations totales (mm)") +
+  theme(axis.text.x = element_blank())
+
+graph_2012_precip
+
+graph_2013_precip <-
+ventes_meteo_par_date %>%
+  filter(Année == 2013) %>%
+  ggplot(aes(x = factor(Jour), y = Ventes, fill = preciptotal_mm)) +
+  scale_fill_gradient(low = "cyan", high = "blue", limits = c(0, 50)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(c("Mois")) +
+  labs(x = "Date", 
+       y = "Ventes",
+       title = "Ventes totales de l'article 44 par jour et mois en 2013",
+       subtitle = "en fonction des précipitations totales (mm)",
+       fill = "Précipitations totales (mm)") +
+  theme(axis.text.x = element_blank())
+
+graph_2013_precip
+
+graph_2014_precip <-
+ventes_meteo_par_date %>%
+  filter(Année == 2014) %>%
+  ggplot(aes(x = factor(Jour), y = Ventes, fill = preciptotal_mm)) +
+  scale_fill_gradient(low = "cyan", high = "blue", limits = c(0, 50)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(c("Mois")) +
+  labs(x = "Date", 
+       y = "Ventes",
+       title = "Ventes totales de l'article 44 par jour et mois en 2013",
+       subtitle = "en fonction des précipitations totales (mm)",
+       fill = "Précipitations totales (mm)") +
+  theme(axis.text.x = element_blank())
+
+graph_2014_precip
+```
+
+
+## Visualisations alternatives
+
+Nous avons effectué des visualisations alternatives pour avoir plus d'informations.
+
+Les graphiques montrent l’évolution des ventes de l’article 44 en fonction des conditions météorologiques.
+On observe que la température maximale influence les ventes de manière variable selon les mois : la tendance est plutôt négative durant l’hiver et le printemps, alors qu’elle devient légèrement positive à la fin de l’été.
+En revanche, les précipitations totales ont un effet plus constant : les ventes diminuent lorsque la pluie augmente, signe que les journées pluvieuses réduisent la fréquentation des magasins ou les achats.
+Dans l’ensemble, ces résultats suggèrent que la météo exerce potentiellement un impact sur les ventes. Nous poursuivrons cette analyse de façon plus approfondie.
+
+
+```{r}
+ggplot(ventes_meteo_par_date, aes(x = tmax_c, y = Ventes)) +
+  geom_point(alpha = 0.6, size = 2, color = "#1f77b4") +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 1, color = "#ff7f0e") +
+  facet_wrap(~ Mois, scales = "free", nrow = 2) +
+  labs(title = paste("Ventes du meilleur item","selon la température maximale"),
+       x = "Température maximale (°C)",
+       y = "Ventes totales par jour") +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    strip.background = element_rect(fill = "#e0e0e0"),
+    strip.text = element_text(face = "bold")
+  )
+
+# Visualisation : Ventes vs Précipitations (preciptotal)
+
+ggplot(ventes_meteo_par_date, aes(x = preciptotal_mm, y = Ventes)) +
+  geom_point(alpha = 0.6, size = 2, color = "#2ca02c") +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 1, color = "#d62728") +
+  facet_wrap(~ Mois, scales = "free", nrow = 2) +
+  labs(title = paste("Ventes du meilleur item", "selon les précipitations"),
+       x = "Précipitations totales (mm)",
+       y = "Ventes totales par jour") +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    strip.background = element_rect(fill = "#e0e0e0"),
+    strip.text = element_text(face = "bold")
+  )
+```
+
+
+# 1.4 Regroupement
+
+Afin de réaliser les regroupements, nous allons d'abord sélectionner les colonnes nécessaires dans le jeu de données. 
+Nous souhaitons garder seulement les caractéristiques qui seront utiles pour les regroupements. 
+Dans ce cas-ci, nous allons garder les ventes, la température maximale en Celsius et les précipitation totales en millimètres.
+
+```{r}
+ventes_meteo_cl <-
+ventes_meteo_par_date %>%
+  select(Ventes, tmax_c, preciptotal_mm)
+
+ventes_meteo_cl %>%
+  head(5)
+
+#vérifier s'il y a des valeurs manquantes et le nombre de lignes
+ventes_meteo_cl %>%
+  summarize(
+    na_count = sum(is.na(.)), n = n())
+```
+
+Ensuite, nous allons choisir le nombre de groupes avec la méthode du coude. 
+Faire un graphique avec différents nombres de groupes (2 à 10), permet d'identifier le nombre de groupes qui amène le plus de valeur à nos regroupements pour expliquer la variance entre les groupes.
+```{r}
+n_clusters <- 2:10
+ performance <- 2:10
+ total_ss <- 2:10
+ between_ss <- 2:10
+ set.seed(2342423)
+ 
+ for (i in 1:length(performance)) {
+   curr_cl <- kmeans(ventes_meteo_cl, centers = n_clusters[i], nstart = 2)
+   between_ss[i] <- curr_cl$betweenss
+   total_ss[i] <- curr_cl$totss
+   performance [i] <- curr_cl$betweenss / curr_cl$totss
+ }
+ 
+  cl_stats <-
+   tibble("Nombre de regroupements" = n_clusters,
+          "between_SS / total_SS" = performance,
+          total_ss = total_ss,
+          between_ss = between_ss)
+ 
+ cl_stats %>%
+   head(5)
+```
+
+Tracer le graphique pour trouver le coude. 
+```{r}
+cl_stats %>%
+   mutate(within_ss = total_ss - between_ss) %>%
+   ggplot(aes(x = `Nombre de regroupements`,
+              y = within_ss)) +
+   geom_point() +
+   geom_line(linetype = "dashed") +
+   geom_vline(aes(xintercept = 3), linetype = "dotted") +
+   geom_vline(aes(xintercept = 4), linetype = "dotted") +
+   labs(x = "Nombre de regroupements",
+        y = "Variance expliquée")
+```
+
+Selon ce graphique, les options de 3 et 4 regroupements nous semblent intéressantes. Nous allons faire les deux et ensuite comparer leur performance. Ce sont les deux options qui nous semblent expliquer le plus variance avec un nombre de groupes relativement faible. Au-delà de 4 groupes, le gain est moindre.
+
+Placer les observations dans les regroupements. Nous allons d'abord faire les regroupements avec 4 groupes.
+```{r}
+#fixer le seed permet de retirer l'aspect aléatoire du kmeans
+set.seed(2342423)
+
+#le nombre de centers est le nombre de groupes que nous avons décidé d'utiliser pour les clusters
+cl <-
+  kmeans(ventes_meteo_cl,
+         centers = 4)
+```
+
+
+Ajouter l'appartenance aux groupes dans notre jeu de données. 
+Nous avons aussi ajouté des colonnes avec les données normalisées afin de pouvoir les utiliser plus tard pour nos graphiques.
+```{r}
+ventes_meteo_cl2 <- 
+ventes_meteo_cl %>% mutate(cluster = cl$cluster)
+
+ventes_meteo_cl2 %>%
+  head(5)
+
+ventes_meteo_cl2 <-
+ventes_meteo_cl2 %>%
+  mutate(Ventes_norm = scale(Ventes), .after = Ventes) %>%
+  mutate(tmax_norm = scale(tmax_c), .after = tmax_c) %>%
+  mutate(precip_norm = scale(preciptotal_mm), .after = preciptotal_mm)
+
+ventes_meteo_cl2 %>%
+  head(5)
+  
+```
+
+Observations: 
+Quand il fait très chaud ou très froid, il semble avoir moins de ventes. 
+Pour ce qui est des précipitations totales, quand elles sont très basses, il y a toutes une variété de ventes très basses à très hautes.
+Par contre, pour les journées où il y a beacoup de pluie, les ventes semblent plafonner entre 200 et 400 unités vendues par jour.
+
+```{r}
+ventes_meteo_cl2 %>%
+  ggplot(aes(x = tmax_norm,
+             y = Ventes_norm)) +
+  geom_point(aes(color = factor(cluster))) +
+  coord_fixed() +
+  labs(title = "Groupes ventes-température sur données normalisées",
+       color = "Groupe",
+       x = "température max normalisée",
+       y = "ventes normalisées")
+
+ventes_meteo_cl2 %>%
+  ggplot(aes(x = tmax_c,
+             y = Ventes)) +
+  geom_point(aes(color = factor(cluster))) +
+  coord_fixed(ratio = 1/8)+
+  labs(title = "Groupes ventes-température sur données non normalisées",
+       color = "Groupe",
+       x = "température maximale",
+       y = "ventes")
+
+ventes_meteo_cl2 %>%
+  ggplot(aes(x = precip_norm,
+             y = Ventes_norm)) +
+  geom_point(aes(color = factor(cluster))) +
+  coord_fixed() +
+  labs(title = "Groupes ventes-précipitations sur données normalisées",
+       color = "Groupe",
+       x = "précipitations normalisées",
+       y = "ventes normalisées")
+
+ventes_meteo_cl2 %>%
+  ggplot(aes(x = preciptotal_mm,
+             y = Ventes)) +
+  geom_point(aes(color = factor(cluster))) +
+  coord_fixed(ratio = 1/10)+
+  labs(title = "Groupes ventes-précipitations sur données non normalisées",
+       color = "Groupe",
+       x = "précipitations",
+       y = "ventes")
+
+#Calcul du résumé statistique pour k=4
+cluster_summary1 <- ventes_meteo_cl2 %>%
+  group_by(cluster) %>%
+  summarise(
+    n_jours = n(),
+    mean_Ventes = mean(Ventes),
+    sd_Ventes = sd(Ventes),
+    mean_tmax = mean(tmax_c),
+    mean_precip = mean(preciptotal_mm),
+    .groups = "drop"
+  )
+
+#visualisation des groupes de façon générale
+cluster_summary1 %>%
+  ggplot(aes(x = mean_tmax, 
+             y = mean_Ventes, 
+             size = mean_precip, 
+             color = factor(cluster))) + 
+   geom_point(alpha = 1, shape = 16) +
+   scale_size_continuous(
+    name = "Précipitations moyennes (mm)",
+    range = c(8, 14)) + 
+      scale_color_manual(
+    values = c("1" = "#E74C3C",  
+               "2" = "#2ECC71", 
+               "3" = "turquoise",
+               "4" = "purple")  
+  ) +
+  labs(
+    title = paste("Profil moyen des clusters — k = 4"),
+    subtitle = "Chaque point représente le centre moyen d'un groupe",
+    x = "Température moyenne (°C)",
+    y = "Ventes moyennes par jour",
+    color = "Cluster") +
+  theme(panel.background = element_blank())
+
+# 9. Résumé statistique détaillé
+print(cluster_summary1)
+
+```
+
+Voici l'analyse avec 3 regroupements cette fois-ci.
+
+```{r}
+# ANALYSE K-MEANS
+
+# 1. Choix du nombre de clusters
+k_choice <- 3
+
+# 2. Exécution du k-means
+set.seed(2342423)
+kmeans_res <- kmeans(ventes_meteo_cl, centers = k_choice)
+
+# 3. Ajout des clusters au jeu de données d'origine
+data_clusters <- ventes_meteo_cl %>%
+  mutate(
+    cluster = factor(kmeans_res$cluster),
+    tmax_scaled = scale(tmax_c)[, 1],
+    precip_scaled = scale(preciptotal_mm)[, 1]
+  )
+
+# 4. Calcul du résumé statistique pour k=3
+
+cluster_summary <- data_clusters %>%
+  group_by(cluster) %>%
+  summarise(
+    n_jours = n(),
+    mean_Ventes = mean(Ventes),
+    sd_Ventes = sd(Ventes),
+    mean_tmax = mean(tmax_c),
+    mean_precip = mean(preciptotal_mm),
+    .groups = "drop"
+  )
+
+# 5. Calcul des centroïdes sur l'échelle originale
+centroids_original <- as_tibble(kmeans_res$centers) %>%
+  mutate(cluster = factor(1:k_choice))
+
+# 6. Visualisation 1 : Corrélation entre Température et Ventes
+ggplot(data_clusters, aes(x = tmax_c, y = Ventes, color = cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 1) +  # linewidth au lieu de size
+  facet_wrap(~ cluster, ncol = 3) +
+  labs(
+    title = paste("Relation entre température et ventes selon les clusters (k =", k_choice, ")"),
+    x = "Température maximale (°C)",
+    y = "Ventes totales par jour",
+    color = "Cluster"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "bottom")
+
+# 7. Visualisation 2 : Corrélation entre Précipitations et Ventes
+ggplot(data_clusters, aes(x = preciptotal_mm, y = Ventes, color = cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 1) +  # linewidth au lieu de size
+  facet_wrap(~ cluster, ncol = 3) +
+  labs(
+    title = paste("Relation entre précipitations et ventes selon les clusters (k =", k_choice, ")"),
+    x = "Précipitations totales (mm)",
+    y = "Ventes totales par jour",
+    color = "Cluster"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "bottom")
+
+# 8. Visualisation 3 : Profil moyen des clusters
+ggplot(cluster_summary, 
+       aes(x = mean_tmax, y = mean_Ventes, 
+           size = mean_precip, color = cluster)) +
+  
+  # Points pleins colorés (plus visibles)
+  geom_point(alpha = 0.9, shape = 16) +
+  
+  # Étiquettes des clusters (bien visibles, légèrement décalées)
+  geom_text(aes(label = cluster),
+            vjust = -1, hjust = 0.5, size = 6,
+            fontface = "bold", color = "black", show.legend = FALSE) +
+  
+  # Taille des points amplifiée pour distinguer le cluster 1
+  scale_size_continuous(
+    name = "Précipitations moyennes (mm)",
+    range = c(8, 25)
+  ) +
+  
+  # Palette manuelle contrastée
+  scale_color_manual(
+    values = c("1" = "#E74C3C",  # rouge vif
+               "2" = "#2ECC71",  # vert clair
+               "3" = "#3498DB")  # bleu moyen
+  ) +
+  
+  labs(
+    title = paste("Profil moyen des clusters — k =", k_choice),
+    subtitle = "Chaque point représente le centre moyen d'un groupe",
+    x = "Température moyenne (°C)",
+    y = "Ventes moyennes par jour",
+    color = "Cluster"
+  ) +
+  
+  # Étendre l'échelle pour ne rien couper
+  coord_cartesian(
+    ylim = c(0, max(cluster_summary$mean_Ventes) * 1.2),
+    xlim = c(min(cluster_summary$mean_tmax) - 0.2, max(cluster_summary$mean_tmax) + 0.2)
+  ) +
+  
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18, hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    legend.position = "right",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10)
+  )
+
+# 9. Résumé statistique détaillé
+print(cluster_summary)
+```
+
+
+## Qualité des regroupements
+
+Vérifier la qualité des groupes lorsqu'on utilise 4 groupes pour faire les regroupements :
+```{r}
+#betwenss doit être haut, relativement à withinss
+cl$betweenss
+
+#withinss doit être bas, relativement à betweenss
+cl$withinss
+
+#ratio doit se rapprocher de 1, avec un petit nombre de groupes
+cl$betweenss / cl$totss
+```
+
+Vérifier la qualité des groupes lorsqu'on utilise 3 groupes pour faire les regroupements :
+
+```{r}
+kmeans_res$betweenss
+kmeans_res$withinss
+kmeans_res$betweenss / kmeans_res$totss
+```
+
+Lorsque le ratio betweenss/totss se rapproche de 1, nous avons des groupes de bonne qualité.
+C'est la mesure du pourcentage de la variance qui est expliquée par les groupes.  
+Selon notre analyse, 4 groupes semblent avoir une meilleur performance que 3 groupes. 86.90% de la variance peut être expliquée avec ces 4 groupes.
+De plus, un betweens haut et un withinss bas sont souhaitables. Le regroupement fait avec 4 groupes est également mieux pour ces paramètres.
+
+
+# Conclusion
+
+
+Avant de former les groupes, nous avions 2 hypothèses:
+- Il ne semble pas avoir de lien entre la température maximale et le nombre de ventes
+- Les journées qui ont beaucoup plus de précipitations ont moins de ventes
+
+Après avoir formé les groupes, seule l'une de nos hypothèses précédentes a été confirmée (en partie):
+- Nous constatons que les journées très froides et les journées très chaudes ont moins de ventes (hypothèse précédente infirmée)
+- Les journées qui ont beaucoup de précipitations semblent avoir des ventes qui sont plafonnées à un certain niveau (hypothèse précédente confirmée en partie)
