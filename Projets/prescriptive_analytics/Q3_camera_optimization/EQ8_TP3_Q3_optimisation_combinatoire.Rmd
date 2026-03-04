@@ -1,0 +1,434 @@
+---
+title: |
+  Travail pratique 3 - Analytique prescriptive
+author: |
+ - Équipe 8: 
+ - **MARTIN, SABRINA** (Matricule: 537381603)
+ - **KEITA, MAHOMET LIMENIA JEAN-YVES** (Matricule: 537175293)
+date: 2025-11-19
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: journal
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 3 - Optimisation combinatoire
+
+Chargement des librairies tidyverse [@tidyverse], CVXR [@CVXR] & GA [@GA] qui seront utilisées pour répondre au problème.
+```{r}
+library(tidyverse)
+library(CVXR)
+library(GA)
+```
+
+Extraire les matrices des fichiers rds qui seront utilisés pour tester les modèles. Tiny matrix a 6 lignes par 6 colonnes. Large matrix a 200 lignes par 200 colonnes. Les modèles qui seront créés doivent être généralisés pour répondre à plusieurs instances du problème (par exemple, les deux matrices différentes tiny et large matrix). 
+```{r}
+tiny_matrix <- readRDS("data/tiny_problem_adjacency_matrix.rds")
+large_matrix <- readRDS("data/large_problem_adjacency_matrix.rds")
+```
+
+### Introduction au problème
+
+Basile surveillance cherche à optimiser la pose de caméras afin de couvrir la sécurité de tous les espaces (C1) avec le moins de caméras possible (objectif / V1). Les caméras doivent être installées à des points stratégiques pour couvrir le plus de couloirs possibles avec une seule caméra (ce sont des caméras à 360 degrés). 
+
+Chaque colonne et rangée de la matrice représente un de ces points stratégiques, par exemple une intersection ou un coin (P1). S'il y a un 1 entre deux points différents, cela veut dire qu'ils sont reliés par un couloir. Si un point est central à plusieurs couloirs, il est encore plus stratégique car une seule caméra à cet endroit couvrirait encore plus d'espace de surveillance (couloirs différents). Il ne faut pas tenir compte des 1 dans la diagonale, ils n'ont pas de signification; un point ne peut pas être adjacent à lui-même.
+
+Voir exemple de données avec la tiny matrix pour illustrer le problème.
+```{r}
+tiny_matrix
+```
+
+
+
+## 3.1 - Modélisation: Programme en nombres entiers avec CVXR
+
+Formuler un programme en nombre entiers qui servira a résoudre différentes instances du problèmes pour différents immeubles (ex: tiny matrix & large matrix).
+
+```{r}
+#création d'un modèle général
+create_model <- function(adjacency_matrix) {
+
+#Paramètre:
+#P1: nombre de points stratégiques dans la matrice (building)  
+pPoints <- nrow(adjacency_matrix) 
+
+#Variable: 
+#V1: variable binaire si on installe une caméra à ce point ou non
+vX <- Variable(pPoints, boolean = TRUE) 
+  
+#Objectif: minimiser le nombre de caméras installées
+objective <- Minimize(sum(vX))
+  
+#Contrainte:
+#C1: chaque point dans la matrice doit être couvert par lui-même ou un point qui lui est relié en fonction de où les caméras seront installées 
+constraints <- list(
+    adjacency_matrix %*% vX >= 1)
+
+#objet modèle
+problem <- Problem(objective,
+                     constraints)
+  
+#stocker les résultats 
+result = list(variables = vX,
+                problem = problem)
+
+#afficher les résultats
+return(result)
+}
+```
+
+Utilisation du modèle sur la tiny matrix:
+```{r}
+my_problem <- create_model(adjacency_matrix = tiny_matrix)
+
+my_problem$variables
+
+my_problem$problem
+```
+
+Utilisation du modèle général sur le large matrix:
+```{r}
+my_problem2 <- create_model(adjacency_matrix = large_matrix)
+
+my_problem2$variables
+
+my_problem2$problem
+```
+
+## 3.2 - Résoudre le programme
+
+### Résoudre le "tiny problem" 
+
+Nous allons d'abord utiliser le solveur pour résoudre le tiny matrix. Ensuite, nous allons consulter le statut du solveur, le résultat de la fonction objectif (nombre de caméras installées), ainsi que le résultat détaillé (à quels points les caméras seront installées).
+```{r}
+#résoudre avec le solveur
+result <- psolve(my_problem$problem,
+                 solver = "GLPK_MI",
+                 verbose = TRUE)
+
+#statut du solveur
+cat('Statut retourné par le solveur:', 
+    result$status,
+    '\n')
+
+#combien de caméras seront installées
+cat(sprintf("Valeur de la fonction objectif: %.2f\n", result$value))
+
+#où les caméras seront installées
+result$getValue(my_problem$variables)
+```
+
+Le statut du solveur est optimal. Avec des caméras installées aux points 2 et 3, tous les points du batiment sont couverts avec un nombre minimal de caméras.
+
+
+### Résoudre le "large problem"
+
+Encore une fois, nous allons utiliser le solveur pour résoudre, et ensuite aller consulter le statut du solveur, le résultat de la fonction objectif (nombre de caméras installées), ainsi que le détail de la solution (où les caméras seront installées).
+```{r}
+#résoudre avec le solveur
+result2 <- psolve(my_problem2$problem,
+                 solver = "GLPK_MI",
+                 verbose = TRUE)
+
+#statut du solveur
+cat('Statut retourné par le solveur:', 
+    result2$status,
+    '\n')
+
+#combien de caméras seront installées
+cat(sprintf("Valeur de la fonction objectif: %.2f\n", result2$value))
+
+#où les caméras seront installées
+camera <- which(round(result2$getValue(my_problem2$variables)) == 1)
+
+#quelques points clés où des caméras seront installées
+head(camera)
+
+```
+
+Le statut du solveur est optimal. Avec des 58 caméras installées sur 200 points stratégiques, tous les points du batiment sont couverts avec un nombre minimal de caméras. Pour avoir le détail d'où chaque caméra sera installée, il est possible de consulter l'objet camera en entier.
+
+## 3.3 - Modélisation générale à l'aide de fonctions et variables globales
+
+Créer des fonctions qui permettent de calculer la valeur de la fonction objectif et de vérifier si les contraintes sont respectées, afin de pouvoir utiliser rapidement le modèle sur d'autres instances. La dernière fonction permet de comparer deux solutions pour voir laquelle est meilleure, en fonction du respect des contraintes et de la valeur de l'objectif. Les données dans adjacency matrix peuvent être changées au besoin pour appliquer ces fonctions sur plusieurs instances du problème.
+```{r}
+
+adjacency_matrix <- tiny_matrix
+
+nb_points <- nrow(adjacency_matrix)
+
+#fonction permettant de calculer le nombre de caméras pour l'objectif (minimiser)
+f <- function(x) {
+  sum(x)
+}
+
+val_obj <- function(x) {
+  f(x)
+}
+
+#fonction permettant de vérifier si la contrainte est respectée (solution réalisable)
+#chaque point doit être couvert par soi-même ou un point adjacent
+sol_c1 <- function(x) {
+  all(adjacency_matrix %*% x >= 1)
+}
+
+is_sol_feasible <- function(x) {
+  sol_c1(x)
+}
+
+#fonction permettant de comparer deux solutions pour voir laquelle est mieux par rapport à l'objectif et le respect des contraintes
+is_sol_x_better_than_y <- function(x, y) {
+  sol_x_better = FALSE
+  if(!is_sol_feasible(x)) { #si x n'est pas réalisable, n'est pas meilleure
+    sol_x_better = FALSE
+  } else if (is_sol_feasible(x) & !is_sol_feasible(y)) { #si x est réalisable, et y non, x est meilleure
+    sol_x_better = TRUE
+  } else if (val_obj(x) < val_obj(y)) { #x plus petit que y objectif minimiser, x est meilleure
+    sol_x_better=TRUE
+  }
+  sol_x_better
+}
+```
+
+Tester les 3 solutions proposées sur le "tiny matrix":
+```{r}
+x <- c(0, 0, 1, 0, 0, 1)
+y <- c(1, 0, 1, 1, 0, 1)
+z <- c(1, 1, 1, 1, 1, 1)
+
+#vérifier les fonctions objectif pour chaque solution
+cat("Solution fonction objectif:\n")
+cat("x:", val_obj(x), "\n")
+cat("y:", val_obj(y), "\n")
+cat("z:", val_obj(z), "\n")
+
+#vérifier si les contraintes sont respectées
+cat("Contrainte respectée:\n")
+cat("x:", is_sol_feasible(x), "\n")
+cat("y:", is_sol_feasible(y), "\n")
+cat("z:", is_sol_feasible(z), "\n")
+
+#comparer les solutions entre elles
+cat("Solution a meilleure que b:\n")
+cat("x vs y:", is_sol_x_better_than_y(x,y), "\n")
+cat("y vs x:", is_sol_x_better_than_y(y,x), "\n")
+cat("x vs z:", is_sol_x_better_than_y(x,z), "\n")
+cat("z vs x:", is_sol_x_better_than_y(z,x), "\n")
+cat("y vs z:", is_sol_x_better_than_y(y,z), "\n")
+cat("z vs y:", is_sol_x_better_than_y(z,y), "\n")
+```
+
+Explication des comparaisons:
+
+Y est mieux que X. X ne respecte pas la contrainte, alors elle est éliminée comme solution.
+
+Y est mieux que Z. Les deux respectent la contrainte, mais Y a moins de caméras que Z.
+
+## 3.4 - Deux algorithmes pour résoudre le problème
+
+### Recherche aléatoire
+
+Faire une recherche aléatoire parmi toutes les solutions possibles. Le nombre d'itérations de la recherche aléatoire est modifiable et défini dans l'objet nb_iterations. Nous allons d'abord débuter avec une caméra seulement et ajouter progressivement plus de caméras de façon aléatoire (entre une et deux caméras ajoutées pour chaque itération).
+```{r}
+nb_iterations <- 50
+best_incumbent <- rep(0, nb_points) #on commence avec zéro caméras
+best_incumbent_iteration <- 0
+best_incumbent[sample(1:nb_points, 1)] <- 1 #on ajoute une caméra au hasard
+candidate <- best_incumbent
+
+#vérifier si des points sont non couverts par une caméra
+for(curr_iteration in 1:nb_iterations) {
+ points_non_couverts <- which((adjacency_matrix %*% candidate) < 1)
+ 
+ #si oui, ajouter 1-2 caméras par itération
+ if(length(points_non_couverts) > 0) {
+   nb_ajouter <- sample(1:min(2, length(points_non_couverts)), 1)
+   ajouter_cam <- sample(points_non_couverts, nb_ajouter)
+   candidate[ajouter_cam] <- 1
+ }
+ 
+ #mettre à jour la meilleur solution si la nouvelle est réalisable et mieux que la dernière trouvée
+ #mettre à jour le compteur d'itération pour la meilleure solution
+ if(is_sol_feasible(candidate) & is_sol_x_better_than_y(candidate, best_incumbent)) {
+   best_incumbent <- candidate
+   best_incumbent_iteration <- curr_iteration
+ }
+ }
+
+# Affichage de la solution trouvée et de sa valeur fonction objectif
+cat('Meilleure solution trouvée:',
+    as.vector(best_incumbent, mode = 'character'),
+    '\n')
+
+cat('Objectif de la meilleure solution:',
+    val_obj(best_incumbent),
+    '\n')
+
+cat('Itération de la meilleure solution:',
+    best_incumbent_iteration,
+    '\n')
+
+cat('Meilleure solution est-elle réalisable:',
+    is_sol_feasible(best_incumbent),
+    '\n')
+
+```
+
+La meilleure solution trouvée par l'algorithme de recherche aléatoire pour le tiny matrix est réalisable. Le nombre de caméras peut varier d'une exécution à l'autre.
+
+Tester sur le large matrix :
+```{r}
+adjacency_matrix <- large_matrix
+
+nb_points <- nrow(adjacency_matrix)
+
+nb_iterations <- 5000 #augmentation du nombre d'itérations
+best_incumbent <- rep(0, nb_points)
+best_incumbent_iteration <- 0
+best_incumbent[sample(1:nb_points, 1)] <- 1
+candidate <- best_incumbent
+
+for(curr_iteration in 1:nb_iterations) {
+ points_non_couverts <- which((adjacency_matrix %*% candidate) < 1)
+ if(length(points_non_couverts) > 0) {
+   nb_ajouter <- sample(1:min(2, length(points_non_couverts)), 1)
+   ajouter_cam <- sample(points_non_couverts, nb_ajouter)
+   candidate[ajouter_cam] <- 1
+ }
+ 
+ if(is_sol_feasible(candidate) & is_sol_x_better_than_y(candidate, best_incumbent)) {
+   best_incumbent <- candidate
+   best_incumbent_iteration <- curr_iteration
+ }
+ }
+
+# Affichage de la solution trouvée et de sa valeur fonction objectif
+cat('Meilleure solution trouvée:',
+    as.vector(best_incumbent, mode = 'character'),
+    '\n')
+
+cat('Objectif de la meilleure solution:',
+    val_obj(best_incumbent),
+    '\n')
+
+cat('Itération de la meilleure solution:',
+    best_incumbent_iteration,
+    '\n')
+
+cat('Meilleure solution est-elle réalisable:',
+    is_sol_feasible(best_incumbent),
+    '\n')
+```
+
+La meilleure solution trouvée par l'algorithme de recherche aléatoire pour le large matrix est réalisable. Le nombre de caméras peut varier d'une exécution à l'autre.
+
+### Algorithme génétique
+
+Une pénalité est appliquée lorsqu'une solution n'est pas réalisable. Le degré de pénalité doit être proportionnel au degré de "non réalisabilité".
+
+D'abord nous allons remettre le tiny matrix pour tester ce nouvel algorithme.
+```{r}
+adjacency_matrix <- tiny_matrix
+
+nb_points <- nrow(adjacency_matrix)
+```
+
+
+Créer l'algorithme génétique en fonction des contraintes et de la fonction objectif: minimiser le nombre de caméras.
+```{r}
+#fonction objectif nb de caméras totales à minimiser
+ga_f <- function(x) {
+  sum(x)
+}
+
+#définir quand la contrainte n'est pas respectée
+ga_c1 <- function(x) {
+  pmax(1 - adjacency_matrix %*% x, 0)
+}
+
+#pénalité si la contrainte n'est pas respectée
+ga_p1 <- function(x) {
+  sum(ga_c1(x))
+}
+
+#decodeur
+ga_decode <- function(x) {
+  pmin(round(x), 1)
+}
+
+#fitness
+ga_fitness<-function(x) {
+  x <- ga_decode(x)
+#Objectif: minimiser f(x)
+  f <- ga_f(x)
+#Terme de penalite
+  pen <- ga_p1(x)
+#augmenter la pénalité
+  penalite <- 100 * pen
+#Evaluation de la fonction de fitness
+  -(f + penalite)
+ }
+```
+
+
+Résoudre l'agorithme sur le tiny matrix:
+```{r}
+set.seed(12345)
+
+ga_results <- ga(type = "binary",
+                 fitness = ga_fitness,
+                 nBits = nrow(adjacency_matrix),
+                 popSize = 40,
+                 maxiter = 100,
+                 run = 100)
+
+summary(ga_results)
+
+best_solution <- ga_results@solution
+
+cat('Meilleure solution est-elle réalisable:',
+    apply(best_solution, 1, is_sol_feasible),
+    '\n')
+
+cat('Objectif de la meilleure solution:',
+    apply(best_solution, 1, val_obj),
+    '\n')
+```
+
+Les deux solutions trouvées par l'algorithme génétique pour le tiny matrix sont optimales, et utilisent toutes les deux 2 caméras pour couvrir tous les points.
+
+Résoudre l'agorithme sur le large matrix:
+```{r}
+adjacency_matrix <- large_matrix
+
+nb_points <- nrow(adjacency_matrix)
+
+set.seed(12345)
+
+ga_results <- ga(type = "binary",
+                 fitness = ga_fitness,
+                 nBits = nrow(adjacency_matrix),
+                 popSize = 40,
+                 maxiter = 2000,
+                 run = 2000)
+
+summary(ga_results)
+
+best_solution <- ga_results@solution
+
+cat('Meilleure solution est-elle réalisable:',
+    apply(best_solution, 1, is_sol_feasible),
+    '\n')
+
+cat('Objectif de la meilleure solution:',
+    apply(best_solution, 1, val_obj),
+    '\n')
+```
+
+Les deux solutions trouvées par l'algorithme génétique pour le large matrix sont toutes les deux réalisables et utilisent 66 caméras pour couvrir tous les points.
