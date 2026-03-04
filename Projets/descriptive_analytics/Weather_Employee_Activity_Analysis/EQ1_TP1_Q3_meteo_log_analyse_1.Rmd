@@ -1,0 +1,509 @@
+---
+title: |
+  MQT7021 - Analytique d'affaires
+  Travail pratique 1 - Analytique descriptive
+  Automne 2025
+  Université Laval - FSA
+  Enseignant: Pr Michael Morin
+author: |
+  **NITCHEU TCHAMGOUE, Paulin** (Matricule: 536968218)
+  **MARTIN, SABRINA** (Matricule: 537381603)
+  **KEITA, MAHOMET LIMENIA JEAN_YVES** (Matricule: 537175293)
+  **Date de remise:** 8 Octobre 2025
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    theme: readable
+    highlight: kate
+    df_print: paged
+    code_folding: show
+    code_download: true
+    self_contained: true
+mathjax: default
+lang: fr
+linkcolor: blue
+geometry: margin=2.5cm
+mainfont: "Times New Roman"
+bibliography: references.bib
+fontsize: 11pt
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,        # Afficher le code
+  message = FALSE,    # Ne pas afficher les messages (souvent générés par les librairies)
+  warning = FALSE,    # Ne pas afficher les avertissements
+  results=''         # Afficher le résultat des codes
+)
+```
+\newpage
+
+
+# Question 3 : Météorologie, absences virtuelles et mesures exceptionnelles
+
+    3.1 - Charger les données d'Environnement Canada
+
+D'abord nous chargeons les librairies tidyverse {@tidyverse} & lubridate {@lubridate} qui seront utilisées pour répondre à cette question.
+
+```{r}
+# Chargement des librairies
+library("tidyverse")
+library("lubridate")
+```
+
+
+Ensuite, nous allons importons les données météo qui proviennent de plusieurs fichiers CSV. Les données de météo proviennent de {@DataMeteoCanada}. Affichage des données suite à l'importation.
+
+```{r}
+
+# Définition du chemin vers les fichiers csv
+data_env_can_yqb_path <- file.path("data/meteo_log/env_can/envCanYqb_51457_hourly")
+
+# Lecture des fichiers csv dans le dossier
+tmp_all_files <-
+list.files(path = data_env_can_yqb_path,
+             recursive = FALSE,
+             pattern = '*.csv')
+
+# Création des chemins complets vers chaque fichier
+tmp_all_paths <- file.path(data_env_can_yqb_path, tmp_all_files)
+
+#Lecture de tous les fichiers csv
+data_env_can_list <- 
+  tmp_all_paths %>% 
+  map(read_csv)
+
+# Fusion des fichiers en une seule table
+data_env_can <- 
+  data_env_can_list %>% 
+  reduce(rbind)
+
+data_env_can
+```
+
+Vérification s'il y a des valeurs manquantes et le nombre de lignes. Il y a un nombre très élevé de valeurs manquantes.
+
+```{r}
+data_env_can %>%
+  summarize(
+    na_count = sum(is.na(.)), n = n())
+```
+
+
+Ensuite nous allons sélectionner les colonnes que nous souhaitons garder pour faire l'analyse et afficher les 3 premières lignes du data frame résultant.
+
+```{r}
+
+# Sélection des colonnes pertinentes
+data_env_can_prop <- 
+  data_env_can %>%
+  select("Date/Time (LST)", Year, Month, Day, "Time (LST)", "Temp (°C)", Weather) %>%
+  arrange("Date/Time (LST)")
+
+# Affichage des 3 premières lignes de la table de données
+data_env_can_prop %>%
+  slice_head(n = 3)
+```
+
+
+    3.2 - Des problèmes au chargement?
+
+Affichage des problèmes de chargement.
+```{r}
+tmp_df <- read_csv( paste0('data/meteo_log/env_can/envCanYqb_51457_hourly/',
+'en_climate_hourly_QC_7016293_01-2020_P1H.csv'), ) 
+
+problems(tmp_df)
+```
+
+
+Dans la table de jeu de données correspondant au fichier lu, le rapport de diagnostic indique que la ligne 391 de la table contient seulement 9 colonnes avec des données présentes, alors que le restant des 31 colonnes contiennent des données manquantes, erronées ou de format erroné.
+
+
+Diagnostic global des probèmes pour l'ensemble des fichiers.
+
+```{r}
+
+all_problems <- 
+  tmp_all_paths %>% # Chemins complets vers chaque fichier
+  map(read_csv) %>% # Lecture de tous les fichiers csv
+  map(problems) %>% # Détection des problèmes
+  reduce(rbind)     # Agrégation des problèmes
+
+# Affichage des problèmes
+all_problems
+```
+
+
+Le diagnostic complet révèle la problématique. Cependant, ces avertissements liés aux données manquantes ne sont pas nécessairement un véritable problème bloquant, car il peut être réglé plus tard au nettoyage.
+
+
+    3.3 - Nettoyer les données d'Environnement Canada
+
+Analyse des valeurs manquantes avant traitement. Nous avons beaucoup moins de valeurs manquantes suite au traitement pour retirer plusieurs colonnes.
+
+```{r}
+# Trouver nombre valeurs manquantes explicites et nb observations (lignes)
+data_env_can_prop %>%
+  summarize(
+    na_count = sum(is.na(.)), n = n())
+
+# Affichage des 3 premières lignes avec valeurs manquantes
+rows_with_na <-
+  data_env_can_prop %>%
+  filter(if_any(everything(), is.na)) %>%
+  slice_head(n = 3)
+
+rows_with_na
+```
+
+
+Remplissage des valeurs manquantes pour toutes colonnes sans valeurs. Remplissage simultanée par la première valeur non vide précédente, puis vers l'arrière la première valeur non vide suivante.
+
+```{r}
+# Remplissage simultanée vers l'avant par la première valeur non vide précédente, puis vers l'arrière la première valeur non vide suivante.
+
+data_env_can_remp  <-
+  data_env_can_prop %>%
+  fill(everything(), .direction = "down") %>%
+  fill(everything(), .direction = "up")
+
+data_env_can_remp
+```
+
+
+Analyse des valeurs manquantes après le traitement. Il n'y a plus de valeurs manquantes suite au remplacement. Avec la vérification de lignes spécifiques. Nous pouvons voir que les valeurs manquantes ont bien été remplacées par la valeur non vide précédente.
+
+```{r}
+# Nombre de valeurs manquantes après remplissage
+data_env_can_remp %>%
+   summarize(
+    na_count = sum(is.na(.)), n = n())
+
+# Affichage des 3 premières lignes après traitement
+rows_apr_rempl <-
+  data_env_can_remp %>%
+  slice_head(n= 3)
+
+# Affichage de 3 lignes qui ont des valeurs remplacees avant leur traitement
+donnees_replacees <- c(14, 15, 17, 18, 19)
+data_env_can_prop %>%
+  slice(donnees_replacees)
+
+# Affichage de 3 lignes qui ont des valeurs remplacees après leur traitement
+data_env_can_remp %>%
+  slice(donnees_replacees)
+```
+
+
+Ajout de la variable d'heure et filtrage des heures de 8h à 19h.Vérification du nombre de lignes après le filtre par heure de 8h à 19h.
+
+```{r}
+# Extraction de l'heure en format numérique
+data_env_can_filtre <-
+  data_env_can_remp %>%
+  mutate(Hour = hour(hms(`Time (LST)`))) %>%
+  filter(Hour >= 8 & Hour <= 19)
+
+  data_env_can_filtre
+
+# Nombre de lignes restantes après filtrage
+n_filtre <-
+  nrow(data_env_can_filtre)
+
+n_filtre
+```
+
+    3.4 - Charger les données de connexion des employés au serveur
+
+Nous allons d'abord importer les données à partir d'un fichier CSV, puis nous allons afficher les données.
+
+```{r}
+# Définition du chemin relatif pour la lecture de fichier
+chemin_fichier_logged_all <- ("data/logged_all.csv")
+
+# Lecture de fichier
+logged_all <- read_csv(chemin_fichier_logged_all)
+
+# Affichage des 3 premières lignes
+logged_all %>%
+slice_head(n = 3)
+```
+
+
+    3.5 - Nettoyer les données horaires des employés
+Ranger les données pour qu'elles soient "tidy". Le numéro d'employé devient une nouvelle variable (colonne). Ensuite, nous affichons le résultat du traitement. Vérification sur les valeurs manquantes et le nombre de lignes
+. 
+```{r}
+
+logged_prop <-
+  logged_all %>%
+  pivot_longer(
+    cols = starts_with("log_emp"),
+    names_to = "emp_ID",
+    values_to = "logged"
+  ) %>%
+  mutate(emp_ID = as.integer(parse_number(emp_ID))) %>%
+  arrange("Date/Time (LST)")
+
+# affichage des 3 premières lignes
+logged_prop %>%
+  slice_head( n = 3)
+
+#valeurs manquantes et nb de lignes
+logged_prop %>%
+  summarize(
+    na_count = sum(is.na(.)), n = n())
+```
+
+
+    3.6 - Identifier les heures de beau temps
+Créons une variable booléenne avec mutate qui indique si l’heure est une heure de beau temps. La variable Meteo mauvaise est d'abord définie si un des mots suivants est détecté. Ensuite, nous utilisons la météo mauvaise et la température pour déterminer si cette journée est de "Beau Teamps".
+
+```{r}
+bad_conditions <- 
+  c("Snow", "Rain", "Fog", "Thunderstorm", "Drizzle", "Ice", "Freezing")
+
+data_env_can_beau_temps <- data_env_can_filtre %>%
+  mutate(
+    `Meteo Mauvaise` = str_detect(Weather, str_c(bad_conditions, collapse = "|")),
+    `Beau Temps` = (`Temp (°C)` >= 18) & !`Meteo Mauvaise`,
+  )
+```
+
+
+Affichons les trois premières observations de la table:
+
+```{r}
+data_env_can_beau_temps %>%
+  slice_head(n = 3)
+```
+
+
+La variable Beau temps sera utilisée pour le reste de l'analyse, et non météo mauvaise car elle contient plus d'information (température + conditions météorologiques). Compter le nombre de jours de beau temps.
+
+```{r}
+n_obs_beau_temps <-
+  data_env_can_beau_temps %>%
+  filter(`Beau Temps` == TRUE) %>%
+  count()
+
+n_obs_beau_temps
+```
+
+
+    3.7 - Identifier la période critique de mesures exceptionnelles
+Une nouvelle colonne est ajoutée pour préciser si cette période fait partie de la période critique de mesures exceptionnelles ou non.
+
+```{r}
+data_env_can_periode_critique <-
+  data_env_can_beau_temps %>%
+  mutate(
+    `Periode critique` = (`Date/Time (LST)` >= ymd("2020-03-01") & `Date/Time (LST)`<= ymd("2020-06-30")) | 
+                         (`Date/Time (LST)` >= ymd("2020-12-01") & `Date/Time (LST)`<= ymd("2021-03-31")) 
+  )
+```
+
+
+Affichons les trois premières observations de la table:
+
+```{r}
+data_env_can_periode_critique %>%
+  slice_head(n = 3)
+```
+
+
+Affichons le nombre d’observations qui sont en période critique:
+
+```{r}
+n_obs_period_critiq <-
+  data_env_can_periode_critique %>%
+  filter(`Periode critique` == TRUE) %>%
+  count()
+
+n_obs_period_critiq
+```
+
+
+Afficher le nombre de valeurs manquantes et nombre de lignes avant la jointure. Aucune valeur manquante.
+
+```{r}
+data_env_can_periode_critique %>%
+summarize(
+    na_count = sum(is.na(.)), n = n())
+```
+
+
+    3.8 - Combiner la météo et les connexions
+Jointure de tables contenant des données météo et connexions
+
+```{r}
+data_meteo_conn <- 
+  logged_prop %>%
+  left_join(data_env_can_periode_critique, by = "Date/Time (LST)")
+```
+
+
+Affichons les trois premières observations de la table:
+
+```{r}
+data_meteo_conn %>%
+  slice_head(n = 3)
+```
+
+
+Vérification de l'existence des valeurs manquantes et compter le nombre de lignes après la jointure :
+```{r}
+n_manq <-
+  data_meteo_conn %>%
+  summarize(
+    na_count = sum(is.na(.)), n = n())
+
+n_manq
+```
+
+
+    3.9 - Est-ce que la température ou les mesures exceptionnelles ont un impact?
+Nous allons faire plusieurs visualisations pour analyser les questions suivantes:
+- s’il y a une différence entre les week-ends et la semaine;
+- s’il y a une différence entre les employés;
+- si la période de mesures exceptionnelles a un impact;
+- s’il y a une différence par rapport à la température (beau temps ou pas)
+
+D'abord nous traitons les données pour trier les jours de semaine des weekend, le beau temps du mauvais temps, les connexions par employé, et les connexions en fonction de la période critique.
+
+```{r}
+data_meteo_conn_semaine <-
+  data_meteo_conn %>%
+  mutate(
+    jour_semaine = wday(`Date/Time (LST)`, label = TRUE, abbr = FALSE),
+    weekend = jour_semaine %in% c("Saturday", "Sunday"),
+    )
+
+#calcul pour voir le nombre de connexions en fonction des critères employé, beau temps, période critique et weekend
+plot_data <- data_meteo_conn_semaine %>%
+  group_by(emp_ID, `Beau Temps`, `Periode critique`, weekend) %>%
+  summarise(nb_connexions = sum(logged), .groups = "drop")
+
+
+```
+
+
+Ensuite nous allons faire plusieurs visualisations pour analyser ces données.
+
+```{r}
+
+plot_data %>%
+  ggplot(aes(x = weekend, y = nb_connexions, fill = `Beau Temps`)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Connexions employés semaine vs fin de semaine",
+    subtitle = "en tenant compte de la météo",
+    x = "Fin de semaine",
+    y = "Connexions (nombre)",
+    fill = "Beau temps",
+    caption = "Source: Gouvernement du Canada, 2025"
+  ) +
+  theme_minimal()
+
+plot_data %>%
+  ggplot(aes(x = emp_ID, y = nb_connexions, fill = `Beau Temps`)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Comparatif connexions entre les employés (en nb)",
+    subtitle = "en tenant compte de la météo",
+    x = "Employés",
+    y = "Nombre de connexions",
+    fill = "Beau temps",
+    caption = "Source: Gouvernement du Canada, 2025"
+  ) +
+  theme_minimal()
+
+plot_data %>%
+  ggplot(aes(x = `Periode critique`, y = nb_connexions, fill = `Beau Temps`)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Impact période critique sur les connexions (nb)",
+    subtitle = "en tenant compte de la météo",
+    x = "Periode critique",
+    y = "Nombre de connexions",
+    fill = "Beau temps",
+    caption = "Source: Gouvernement du Canada, 2025"
+  ) +
+  theme_minimal()
+
+plot_data %>%
+  ggplot(aes(x = `Beau Temps`, y = nb_connexions, fill = `Beau Temps`)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Impact de la météo sur les connexions",
+    x = "Beau temps",
+    y = "Nombre de connexions",
+    fill = "Beau temps",
+    caption = "Source: Gouvernement du Canada, 2025"
+  ) +
+  theme_minimal()
+
+```
+
+
+Météo et fin de semaine: à premier coup d'oeil, il semble avoir beaucoup plus de connexions lorsqu'il y a du mauvais temps que lorsqu'il y a du beau temps. La logique semble la même que l'on soit en semaine ou en fin de semaine. Le nombre de connexions de fin de semaine par beau temps semble être presque zéro. Par contre, cette vue ne permet pas de savoir combien de journées de beau temps nous avons eu en réalité, donc elle n'est pas complète. 
+
+Météo et employés: Les employés numéro 1 et 2 semblent se connection beaucoup moins souvent en période de beau temps que les employés 3 et 4. Pour les périodes de mauvais temps, les employés 2,3,4 se connectent à un rythme beaucoup moindre que l'employé 1. Il est possible que les employés 1 et 2 travaillent moins d'heures totales que les employés 3 et 4, ce qui pourrait expliquer ce graphique.
+
+Méteo et période critique: à premier coup d'oeil, il semble avoir beaucoup plus de connexions en période non critique qu'en période critique. Encore une fois on constate moins de connexions lorsqu'il fait beau. Ce graphique ne tient pas compte du nombre total de périodes qui sont dans la période critique. 
+
+Météo seulement: à première vue il semble avoir plus de connexions en période de mauvais temps qu'en période de beau temps.Par contre cette vue ne permet pas de savoir combien de journées de beau temps nous avons eu en réalité, donc elle n'est pas complète. 
+
+
+Nous allons faire une visualisation différente pour les connexions de semaine et fin de semaine, beau temps et mauvais temps, cette fois ci en fonction du nombre de jours de beau temps. D'abord nous traitons les données pour avoir le nombre de connexions weekend, et beau temps. Ensuite nous allons vérifier le nombre total de plages qui correspondent à ces mêmes critères. Puis nous allons calculer le nombre de connexions moyennes en fonction du nombre de plages.
+
+
+```{r}
+connexions_meteo_weekend <-
+plot_data %>%
+  group_by(weekend, `Beau Temps`) %>%
+  summarize(nb_conn = sum(nb_connexions))
+
+connexions_meteo_weekend
+
+meteo_weekend_compte <-
+data_meteo_conn %>%
+  group_by(weekend, `Beau Temps`) %>%
+  summarise(nb_plages = n(), .groups = "drop")
+
+meteo_weekend_compte
+
+ratio_meteo_weekend <-
+inner_join(connexions_meteo_weekend, meteo_weekend_compte) 
+  
+ratio_meteo_weekend <-
+ratio_meteo_weekend %>%
+  mutate(ratio = nb_conn / nb_plages) %>%
+  mutate(nb_employes_conn = ratio * 4)
+
+ratio_meteo_weekend
+```
+```{r}
+ratio_meteo_weekend %>%
+  ggplot(aes(x = `weekend`, y = nb_employes_conn, fill = `Beau Temps`)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Impact de la météo et weekend sur les connexions moyennes",
+    x = "Fin de semaine",
+    y = "Nb d'employés connectés en moyenne",
+    fill = "Beau temps",
+    caption = "Source: Gouvernement du Canada, 2025"
+  ) +
+  theme_minimal()
+```
+
+
+Dans cette visualisation, on voit mieux l'impact de la météo, particulièrement lorsque l'on tient compte de si la journée est en semaine ou en fin de semaine. Nous avons pris le nombre de connexions réelles pour chaque possibilité et ensuite divisé par le nombre de plages horaires qui avaient ces caractéristiques (de gauche à droite) :
+- semaine + mauvais temps
+- semaine + beau temps
+- fin de semaine + mauvais temps
+- fin de semaine + beau temps
+En moyenne, il y a moins de connexions par période lorsque celle-ci est de beau temps. Également, il y a moins de connexions lorsque la plage est la fin de semaine. Lorsque nous combinons un plage de beau temps et de fin de semaine, les connexions moyennes sont presque nulles. Cette visualisation permet de mieux tenir compte du nombre réel de plages correspondant au critères que l'on souhaite analyser.
