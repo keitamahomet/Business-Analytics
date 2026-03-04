@@ -1,0 +1,643 @@
+---
+title: |
+  Travail pratique 4 - Persistance des données
+author: |
+ - Équipe 8: 
+ - **MARTIN, SABRINA** (Matricule: 537381603)
+ - **KEITA, MAHOMET LIMENIA JEAN-YVES** (Matricule: 537175293)
+date: 2025-12-10
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: journal
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1 Persistances des données
+
+Charger les librairies tidyverse [@tidyverse], RSQLite [@RSQLite] et DBI [@DBI] qui seront utilisées pour répondre à la question. 
+```{r}
+library(tidyverse)
+library(RSQLite)
+library(DBI)
+```
+
+
+# 1.1 Base de données intègre: ménage pour rendre le tout intègre
+
+## Charger les données
+
+Charger les données à partir des fichiers CSV.
+```{r}
+data_cat <- read.csv("data/Q1_categories.csv")
+data_com <- read.csv("data/Q1_companies.csv")
+data_loc <- read.csv("data/Q1_locations.csv")
+data_typ <- read.csv("data/Q1_types.csv")
+```
+
+Vérifier les problèmes de chargement:
+```{r}
+problems(data_cat)
+problems(data_com)
+problems(data_loc)
+problems(data_typ)
+```
+
+## Vérifier les données et les rendre intègres
+
+### 1. Catégories
+
+1. Vérifier si la clé primaire est unique et si elle est non nulle (intégrité d'entité)
+
+Les données data_cat contiennent seulement une colonne category, ce qui respecte la structure souhaitée de la base de données. Une des valeurs de la clé primaire est vide. Comme c'est une table qui contient seulement les catégories nous allons simplement laisser tomber cette valeur.
+```{r}
+#vérifier les données
+data_cat %>%
+  head(5)
+
+#compter valeurs vides
+data_cat %>%
+  summarise(na = sum(is.na(.)))
+
+#retirer valeurs vides
+data_cat <-
+  data_cat %>%
+  drop_na()
+
+#compter valeurs vides de nouveau
+data_cat %>%
+  summarise(na = sum(is.na(.)))
+```
+
+
+La clé primaire n'est pas unique, une valeur est en double (Insurance).
+```{r}
+#vérifier si la clé primaire est unique
+data_cat %>%
+  count(category) %>%
+  filter(n > 1) %>%
+  nrow()
+
+#vérifier les valeurs en double de la clé primaire
+data_cat %>%
+  count(category) %>%
+  filter(n > 1)
+```
+
+On laisse tomber une des deux catégories insurance. Elles sont exactement pareilles. Il y a aussi deux catégories qui semblent pareilles mais écrites différemment: "Business and Legal Services" et "Business & Legal Services". Pour le moment nous les laissons telles quelles car nous ne savons pas encore ce qui est utilisé dans les autres tables.
+```{r}
+#retirer valeurs en double
+data_cat <-
+data_cat %>%
+  distinct()
+
+#regarder les catégories
+data_cat
+```
+
+
+2. Vérifier si les types de champs sont cohérents. 
+
+Le type est character ce qui est cohérent pour une catégorie d'entreprise.
+```{r}
+data_cat %>% map(typeof)
+```
+
+3. Vérifier les clés étrangères pour cette clé primaire (intégrité référentielle)
+
+La clé primaire category est utilisée dans la table data_com comme clé étrangère. Il faut vérifier si toutes les valeurs de company_category qui sont dans data_com sont aussi dans la clé primaire category de data_cat. De plus, nous allons vérifier si la table data_com contient deux valeurs de Business et Legal services épelées différemment, ou une seule. Nous allons retirer celle qui n'est pas utilisée de data_cat s'il y en a une qui n'est pas utilisée.
+```{r}
+#aucun résultat pour cette catégorie
+data_com %>%
+  filter(company_category == "Business and Legal Services") %>%
+  count()
+
+#celle-ci est utilisée
+data_com %>%
+  filter(company_category == "Business & Legal Services") %>%
+  count()
+
+#vérifier la clé étrangère par rapport à la clé primaire
+data_com %>%
+  anti_join(data_cat, by = c("company_category" = "category")) %>%
+  select("company_category") %>%
+  distinct()
+```
+
+La seule catégorie qui a été trouvée dans data_com qui n'est pas dans data_cat est une valeur à blanc. Nous n'allons pas l'ajouter pour ne pas introduire de valeurs nulles dans la clé primaire. Nous allons retirer la catégorie Business and Legal Services de la table data_cat car elle est en double et non utilisée dans data_com.
+```{r}
+data_cat <-
+  data_cat %>%
+  filter(!category == "Business and Legal Services")
+
+data_cat
+```
+
+4. Revérifier si la clé primaire est toujours unique suite aux manipulations
+
+La clé primaire est toujours unique et aucune valeur nulle.
+```{r}
+data_cat %>%
+  summarise(na = sum(is.na(.)))
+
+#revérifier si la clé primaire est unique
+data_cat %>%
+  count(category) %>%
+  filter(n > 1) %>%
+  nrow()
+```
+
+La table data_cat est maintenant intègre.
+
+### 2. Compagnies
+
+1. Vérifier si la clé primaire est unique et si elle est non nulle (intégrité d'entité)
+
+La clé primaire id n'existe pas encore. Aucun des champs existants ne semblent correspondre à une clé unique pour représenter chaque compagnie. Nous allons l'ajouter. Par précaution, nous allons vérifier que ce nouveau champ (la clé primaire) est bien unique et qu'elle n'a pas de valeurs nulles.
+```{r}
+#vérifier la structure des données
+data_com %>%
+head(5)
+
+#ajout colonne id
+data_com <-
+data_com %>%
+  mutate(id = row_number(), .before = name)
+
+#vérifier les données
+data_com %>%
+  head(5)
+
+#aucune valeur vide dans id
+data_com %>%
+  summarise(na_count = sum(is.na(id)))
+
+#aucune valeur en double pour id
+data_com %>%
+  count(id) %>%
+  filter(n > 1) %>%
+  nrow()
+```
+
+2. Vérifier si les types de champs sont cohérents
+```{r}
+data_com %>% map(typeof)
+```
+
+Le champ full_time_employees devrait plutôt être ordinal. Nous allons le convertir. Les types des autres champs semblent cohérents selon les données qu'ils contiennent.
+```{r}
+#vérifier les valeurs possibles pour la conversion
+data_com %>%
+  group_by(full_time_employees) %>%
+  count()
+
+#changer le type pour ordinal, en ordre
+data_com$full_time_employees <-
+  factor(data_com$full_time_employees,
+         levels = c("1-10", "11-50", "51-200", "201-500", "501-1,000", "1,001-5,000", "5,001-10,000", "10,001+"),
+         ordered = TRUE)
+
+data_com %>%
+  head(5)
+```
+
+
+3. Vérifier les clés étrangères pour cette clé primaire (intégrité référentielle)
+
+La clé primaire id n'est pas utilisée par une autre table. Aucune vérification nécessaire.
+
+4. Revérifier si la clé primaire est toujours unique suite aux manipulations
+
+Nous n'avons pas fait de manipulations à la clé primaire, mais par précaution nous avons vérifié et tout est beau.
+```{r}
+#aucune valeur vide dans id
+data_com %>%
+  summarise(na_count = sum(is.na(id)))
+
+#aucune valeur en double
+data_com %>%
+  count(id) %>%
+  filter(n > 1) %>%
+  nrow()
+```
+
+La table est intègre, par contre elle ne respecte pas tout à fait la structure souhaitée selon le diagramme de la base de données. Les colonnes existantes city et state ne semblent pas demandées pour la base de données, mais elles seront nécessaires pour répondre à la question 1.4 (requête par état). Nous allons donc les laisser dans la table.
+
+### 3. Locations
+
+1. Vérifier si la clé primaire est unique et si elle est non nulle (intégrité d'entité)
+
+La clé primaire location_id n'existe pas encore. Nous allons la créer à partir des combinaisons city et state. Avant de la créer nous allons vérifier les valeurs nulles et les valeurs en double.
+
+```{r}
+#observer la table
+data_loc %>%
+  head(5)
+
+#vérifier s'il y a des valeurs vides dans tous les champs
+data_loc %>%
+  summarise(na_count = sum(is.na(.)))
+
+#valeurs en double
+data_loc %>%
+  count(city,
+        state) %>%
+  filter(n > 1) %>%
+  nrow()
+
+data_loc %>%
+  count(city,
+        state) %>%
+  filter(n > 1)
+```
+
+Il y a 4 combinaisons city et state qui existent à plusieurs reprises, pour un total de 10 lignes que nous allons laisser tomber.
+```{r}
+#212 lignes avant
+data_loc %>%
+  count()
+
+#retirer les combinaisons en double
+data_loc <-
+  data_loc %>%
+  distinct(city,
+           state)
+
+#202 lignes après
+data_loc %>%
+  count()
+
+#revérifier valeurs en double
+data_loc %>%
+  count(city,
+        state) %>%
+  filter(n > 1) %>%
+  nrow()
+```
+
+Créer la clé primaire location_id.
+```{r}
+#ajout colonne
+data_loc <-
+data_loc %>%
+  mutate(location_id = row_number(), .before = city)
+
+data_loc %>%
+  head(5)
+```
+
+
+2. Vérifier si les types de champs sont cohérents
+
+Les types des champs semblent cohérents pour le type de données qu'ils contiennent.
+```{r}
+data_loc %>% map(typeof)
+```
+
+3. Vérifier les clés étrangères pour cette clé primaire (intégrité référentielle)
+
+Nous allons vérifier si toutes les combinaisons city et state qui se trouvent dans data_com sont aussi dans data_loc.
+```{r}
+data_com %>%
+  anti_join(data_loc,
+            by = c('city' = 'city',
+                   'state' = 'state')) %>%
+  select(city, state) %>%
+  distinct() %>%
+  nrow()
+
+data_com %>%
+  anti_join(data_loc,
+            by = c('city' = 'city',
+                   'state' = 'state')) %>%
+  select(city, state) %>%
+  distinct()
+```
+
+Nous n'allons pas ajouter les combinaisons city state qui contiennent des valeurs nulles dans la table data_loc de la clé primaire car il y a trop d'informations manquantes pour déduire un id unique de location. Nous allons ajouter les autres.
+```{r}
+#valeurs manquantes retirer les NA
+values_to_add <-
+data_com %>%
+  anti_join(data_loc,
+            by = c('city' = 'city',
+                   'state' = 'state')) %>%
+  select(city, state) %>%
+  distinct() %>%
+  drop_na()
+
+#valeurs manquantes restantes
+values_to_add
+
+#ajout à la table data_loc
+data_loc <-
+  data_loc %>%
+  bind_rows(values_to_add)
+```
+
+4. Revérifier si la clé primaire est toujours unique suite aux manipulations
+
+Nous devons refaire la clé primaire car les nouvelles valeurs ajoutées n'ont pas de clé primaire.
+```{r}
+#ajout de la clé primaire
+data_loc <-
+data_loc %>%
+  mutate(location_id = row_number(), .before = city)
+
+data_loc %>%
+  head(5)
+
+#vérifier s'il y a des valeurs vides
+data_loc %>%
+  summarise(na_count = sum(is.na(location_id)))
+
+#aucune valeur en double
+data_loc %>%
+  count(location_id) %>%
+  filter(n > 1) %>%
+  nrow()
+```
+
+Finalement, nous allons ajouter la clé primaire location_id dans la table data_com en tant que clé étrangère.
+```{r}
+data_com <-
+data_com %>%
+  left_join(data_loc, by = c("city", "state"))
+
+data_com %>%
+  head(5)
+```
+
+Nous allons revérifier si la clé étrangère location_id a des valeurs manquantes de la clé primaire. La seule valeur manquante est nulle, ce qui est normal.
+```{r}
+#revérifier si la clé étrangère location_id a des valeurs manquantes de la clé primaire
+data_com %>%
+  anti_join(data_loc,
+            by = c("location_id" = "location_id")) %>%
+  select(location_id) %>%
+  distinct()
+```
+
+Les deux table data_loc et data_com sont maintenant intègres et respectent toutes les deux la structure souhaitée pour la base de données.
+
+### 4. Types
+
+1. Vérifier si la clé primaire est unique et si elle est non nulle (intégrité d'entité)
+
+Il n'y a pas de valeur vide mais il y a une valeur en double (Private).
+```{r}
+data_typ %>%
+  head(5)
+
+#vérifier s'il y a des valeurs vides
+data_typ %>%
+  summarise(na_count = sum(is.na(type)))
+
+#vérifier valeurs en double
+data_typ %>%
+  count(type) %>%
+  filter(n > 1) %>%
+  nrow()
+
+#valeur en double
+data_typ %>%
+  count(type) %>%
+  filter(n > 1)
+```
+
+Nous allons retirer la valeur en double de la clé primaire type. Nous allons d'abord vérifier si la description est la même avant. La premiere description semble plus complète. Nous allons laisser tomber le 2e type Private.
+```{r}
+#voir les descriptions
+data_typ %>%
+  filter(type == "Private")
+
+#retirer le 2e private, distinct garde le premier
+data_typ <-
+data_typ %>%
+  distinct(type, .keep_all = TRUE)
+
+#voir les types après
+data_typ
+```
+
+2. Vérifier si les types de champs sont cohérents
+
+Les types des champs semblent cohérents avec les données contenues.
+```{r}
+data_typ %>% map(typeof)
+```
+
+3. Vérifier les clés étrangères pour cette clé primaire (intégrité référentielle)
+
+La clé primaire type est utilisée dans la table data_com en tant que clé étrangère.
+```{r}
+#nombre de valeurs manquantes de la clé primaire qui sont dans la clé étrangère
+data_com %>%
+  anti_join(data_typ,
+            by = c("type" = "type")) %>%
+  select(type) %>%
+  distinct() %>%
+  nrow()
+
+#consulter le résultat
+data_com %>%
+  anti_join(data_typ,
+            by = c("type" = "type")) %>%
+  select(type) %>%
+  distinct()
+```
+
+Partnership est en double dans les types de la table data_com. Nous allons remplacer un des deux par l'autre, pour avoir une uniformité et pour ne pas l'ajouter en double dans la clé primaire. Nous allons retirer la valeur à blanc des types manquants, et par la suite ajouter les valeurs dans la table data_typ de la clé primaire. 
+```{r}
+#uniformiser partnership
+data_com <-
+data_com %>%
+  mutate(type = if_else(as.character(type) == "partnership",
+                        "Partnership",
+                        as.character(type)))
+
+#stocker les types à ajouter
+values_to_add2 <-
+data_com %>%
+  anti_join(data_typ,
+            by = c("type" = "type")) %>%
+  select(type) %>%
+  distinct() %>%
+  drop_na()
+
+#consulter types à ajouter
+values_to_add2
+
+#ajout dans la clé primaire
+data_typ <-
+  data_typ %>%
+  bind_rows(values_to_add2)
+
+#tous les types de la clé primaire
+data_typ
+
+```
+
+4. Revérifier si la clé primaire est toujours unique suite aux manipulations
+
+Aucune valeur vide et aucune valeur en double pour la clé primaire suite aux manipulations.
+```{r}
+#vérifier s'il y a des valeurs vides
+data_typ %>%
+  summarise(na_count = sum(is.na(type)))
+
+#vérifier valeurs en double
+data_typ %>%
+  count(type) %>%
+  filter(n > 1) %>%
+  nrow()
+```
+
+Les données de la table data_typ sont maintenant intègres et respectent la structure souhaitée pour la base de données. Nous pourrons passer à la création de la base de donnée.
+
+
+# 1.2 Base de données: créez votre base de données
+
+Créer la connexion avec la BD
+```{r}
+mydb <- dbConnect(SQLite(),
+                  "compagnies_bd.sqlite")
+```
+
+Créer des tables avec la commande dbWriteTable. Si les table existent déjà elle ne sont pas créées (ajouté pour permettre de relancer le code au besoin).
+```{r}
+if (!dbExistsTable(mydb, "categories")) {
+dbWriteTable(mydb, "categories", data_cat)
+}
+if (!dbExistsTable(mydb, "companies")) {
+dbWriteTable(mydb, "companies", data_com)
+}
+if (!dbExistsTable(mydb, "locations")) {
+dbWriteTable(mydb, "locations", data_loc)
+}
+if (!dbExistsTable(mydb, "types")) {
+dbWriteTable(mydb, "types", data_typ)
+}
+```
+
+Consulter la liste des tables
+```{r}
+dbListTables(mydb)
+```
+
+Consulter les champs des tables
+```{r}
+dbListFields(mydb, name = "categories")
+dbListFields(mydb, name = "companies")
+dbListFields(mydb, name = "locations")
+dbListFields(mydb, name = "types")
+```
+
+Terminer la création de la BD en fermant la connexion
+```{r}
+dbDisconnect(mydb)
+```
+
+# 1.3 Base de données: configurez la base de données
+
+Configurer les clés primaires, clés étrangères et relations entre les tables dans DB Browser for SQLite.
+
+1. Dans la table categories, category a été défini comme clé primaire.
+2. Dans la table locations, location_id a été défini comme clé primaire.
+3. Dans la table types, type a été défini comme clé primaire.
+4. Dans la table companies, id a été défini comme clé primaire. De plus, 3 clés étrangères ont été référencées: company_category, location_id et type.
+
+# 1.4 Requêtes sur la nouvelle base de données
+
+Utiliser la base de données pour faire les requêtes suivantes.
+
+## Toutes les compagnies (nom et url), fondées entre 1998 et 2001 ordonnées par nom:
+```{r}
+#connexion à la base de données
+mydb <- dbConnect(SQLite(),
+                  "compagnies_bd.sqlite")
+
+dbGetQuery(mydb,
+           paste("SELECT name,",
+                 "       url",
+                 "FROM companies",
+                 "WHERE year_founded BETWEEN 1998 AND 2001",
+                 "ORDER BY name"))
+
+#nb enregistrements
+dbGetQuery(mydb,
+           paste("SELECT COUNT(*) AS nb_enregistrements",                 
+                 "FROM companies",
+                 "WHERE year_founded BETWEEN 1998 AND 2001",
+                 "ORDER BY name"))
+```
+
+## Toutes les compagnies (nom, url, ville, année de fondation) dans l'état de l'Oregon
+
+Nous allons faire une requête dans companies pour trouver les compagnies qui sont dans l'état de l'Ogéron. Nous avions pensé d'abord faire une requête dans locations pour trouver les location_id qui sont en Orégon, et ensuite faire la requête dans companies à partir du résultat trouvé. Par contre, certaines compagnies dans la table companies n'ont pas de location_id car nous n'avions pas toutes les informations nécessaires pour en mettre un (par exemple aucune ville). Nous avons donc écarté cette requête car il y avait des chances de manquer des résultats de cette façon.
+```{r}
+dbGetQuery(mydb,
+           paste("SELECT name,",
+                 "       url,",
+                 "       city,",
+                 "       year_founded",                 
+                 "FROM companies",
+                 "WHERE state = 'OR'",
+                 "ORDER BY name"))
+
+#nb enregistrements
+dbGetQuery(mydb,
+           paste("SELECT COUNT(*) AS nb_enregistrements",                 
+                 "FROM companies",
+                 "WHERE state = 'OR'",
+                 "ORDER BY name"))
+```
+
+## L'année médiane de fondation des compagnies par catégorie de compagnie. Le nombre de compagnies par catégorie pour les catégories avec une année de fondation médiane supérieure à 2007.
+
+Nous allons faire uen requête pour trouver l'année médiane de fondation par catégorie de compagnie, pour toutes les compagnies, afin de mieux comprendre les données dans notre base de données. Ensuite, nous allons faire la requête pour les catégories de compagnies qui ont une année médiane de fondation plus grande que 2007 ainsi que le nombre de compagnies pour chaque catégorie.
+```{r}
+#trouver l'année médiane par catégorie de compagnie
+dbGetQuery(mydb,
+           paste("SELECT company_category,",
+                          "ROUND(MEDIAN(year_founded)) AS median_year",
+                 "FROM companies",
+                 "GROUP BY company_category"))
+
+#tri pour les médianes plus haut que 2007 et nb de compagnies
+dbGetQuery(mydb,
+           paste("SELECT company_category,",
+                          "ROUND(MEDIAN(year_founded)) AS median_year,",
+                          "COUNT(*) AS count",
+                 "FROM companies",
+                 "GROUP BY company_category",
+                 "HAVING median_year > 2007"))
+
+#nb enregistrements
+dbGetQuery(mydb,
+           paste("SELECT COUNT(*) AS nb_enregistrements",
+                 "FROM (",
+                      "SELECT company_category,",
+                          "ROUND(MEDIAN(year_founded)) AS median_year,",
+                          "COUNT(*) AS count",
+                 "FROM companies",
+                 "GROUP BY company_category",
+                 "HAVING median_year > 2007",
+                 ") AS sub"))
+                 
+```
+
+Déconnecter la base de données.
+```{r}
+#déconnexion à la base de données
+dbDisconnect(mydb)
+```
+
+# 1.5 Réflexion sur la base de données produite
+
+Non, la base de données créée n'est pas une base de données transactionnelle (OLTP). La base de données est plutôt une base de données d'analytique (OLAP). Celle-ci permet de faire des requêtes pour avoir des statistiques des compagnies (par exemple la médiane calculée plus tôt) et des aggrégations (par exemple les compagnies dans un état spécifique ou encore fondées pendant une certaine période). Une base de données transactionnelle aurait plutôt des produits, ventes, clients, quantités. Ce sont des données (et requêtes) plus simples, mais fort probablement plus volumineuses. Les requêtes dans une base de données d'analytique sont plus complexes (par exemple on pourrait faire combinaison de group by, compte, tri, statistiques etc).
