@@ -1,0 +1,139 @@
+---
+title: |
+  Travail pratique 3 - Analytique prescriptive
+author: |
+ - Équipe 8: 
+ - **MARTIN, SABRINA** (Matricule: 537381603)
+ - **KEITA, MAHOMET LIMENIA JEAN-YVES** (Matricule: 537175293)
+date: 2025-11-19
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: journal
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 2 - Programmation mathématique (forme "compacte")
+
+## Charger les librairies
+
+Chargement des librairies tidyverse [@tidyverse] & CVXR [@CVXR] qui seront utilisées pour répondre à cette question.
+```{r}
+library(tidyverse)
+library(CVXR)
+```
+
+## Introduction au problème
+
+La compagnie Café-inn cherche à maximer ses profits pour les 4 prochains mois (P1). Pour ce faire, elle cherche à déterminer combien de kilos de café elle devrait produire (V1), vendre (V3) et garder en stock (V2) pour chaque période, tout en respectant le contrat en vigueur avec son client principal Sellers et ses contraintes de production. Café-inn débute avec aucun stock au début de la période 1 (P8).
+
+La compagnie a une capacité de production mensuelle maximale de 81 kg (P2 / C1). Le contrat avec son client principal Sellers stipule qu'ils acheteront au minimum 55kg par mois (P6 / C2), et plus, jusqu'à un maximum de 312kg pour la période de 4 mois (P7 / C3). Un kilo de café coûte 3 dollars à produire (P4) et 2 dollars à stocker en inventaire (P5 / C4). Ces coûts sont stables d'une période à l'autre. Les prix de vente sont changeants, ils seront 10, 15, 13 et 16 dollars pour chaque période, dans l'ordre (P3).
+
+## Définir les paramètres, variables et contraintes du modèle
+
+```{r}
+#Paramètres
+# P1 : Nombre de mois
+T <- 4
+
+# P2 : Capacité de production maximale par mois
+pProductionMax <- 81        
+
+# P3 : Prix de vente par mois, en ordre
+pPrix <- c(10, 15, 13, 16)
+
+# P4 : Coût de production, stable
+pCoutProduction <- 3
+
+# P5 : Coût pour stocker en inventaire, stable
+pCoutInventaire <- 2   
+
+# P6 : Demande minimale mensuelle
+pVentesmin <- 55
+
+# P7 : Limite totale des ventes (selon contrat)
+pMaxAchatsTotaux <- 312
+
+# P8 : Inventaire initial
+pStock0 <- 0
+
+# P9 : Matrice cumulée L (forme compacte)
+# sera utilisée pour l'inventaire
+L <- matrix(0, T, T)
+for (i in 1:T) for (j in 1:i) L[i, j] <- 1
+
+#variables de décision
+#V1: nb kilos produits par période
+vProduction <- Variable(T, nonneg = TRUE)
+#V2: nb kilos stockés en inventaire par période
+vStock      <- Variable(T, nonneg = TRUE)
+#V3: nb kilos vendus par période
+vVentes     <- Variable(T, nonneg = TRUE)
+
+#fonction objectif
+#maximiser le profit net
+#total de toutes les ventes X les prix de vente - les coûts production et inventaire, pour toutes les périodes
+objective_profit <- sum(
+    pPrix * vVentes - 
+    pCoutProduction * vProduction - 
+    pCoutInventaire * vStock
+    )
+
+objective <- Maximize(objective_profit)
+
+#Contraintes
+constraints <- list(
+# C1 : Capacité de production maximale
+  vProduction <= pProductionMax,
+  
+# C2 : Ventes minimales mensuelles
+  vVentes >= pVentesmin,
+
+# C3 : Ventes totales max
+  sum(vProduction) <= pMaxAchatsTotaux,
+
+# C4 : Inventaire cumulé
+  vStock == L %*% (vProduction - vVentes)
+)
+
+#stocker le modèle mathématique
+problem <- Problem(objective, 
+                   constraints)
+```
+
+## Résolution
+
+Résoudre le problème avec le solveur et consulter le statut du solveur. La solution trouvée est optimale, ce qui veut dire qu'elle respecte les contraintes et maximise le profit net.
+```{r}
+#résoudre avec le solveur
+result <- psolve(problem,
+                 solver='GLPK')
+
+#statut du solveur
+cat('Statut retourné par le solveur:', 
+    result$status,
+    '\n')
+```
+
+## Consulter la solution
+
+Consulter la solution trouvée par le solveur et le détail de chaque variable de décision.
+```{r}
+#profit net maximisé
+cat("Valeur objective (profit net total):", result$value, "\n\n")
+
+#variables de décision par période
+#Ventes par période
+cat("Ventes par période:\n"); print(result$getValue(vVentes))
+#Production par période
+cat("Production par période:\n"); print(result$getValue(vProduction))
+#Stock par période
+cat("Stock par période:\n"); print(result$getValue(vStock))
+```
+
+La solution tel que détaillée ci-dessus maximise le profit net pour la période de 4 mois en fonction du nombre de kilos de café vendus, produits et gardés en stock, tout en respectant les contraintes de production et le contrat avec le client principal Sellers.
