@@ -111,13 +111,14 @@ The **10 locations with the largest number of trees** were identified as potenti
 ---
 
 # Project Structure
-Quebec_Trees_Analysis
+Quebec_Trees_Analysis/
 │
 ├── README.md
 ├── trees_analysis.Rmd
 ├── trees_analysis.html
-└── data
-└── vdq-arbrerepertorie.csv
+│
+└── data/
+    └── vdq-arbrerepertorie.csv
 
 ---
 
