@@ -1,5 +1,21 @@
-# Business Analytics Portfolio
+<p align="center">
+<img src="img/photo.jpg" width="200">
+</p>
 
+<h1 align="center">Mahomet Keita</h1>
+<p align="center">
+Business Analytics | Data Science | Supply Chain Analytics
+</p>
+
+# Business Analytics Portfolio
+<p align="center">
+
+![R](https://img.shields.io/badge/R-Analytics-blue)
+![Python](https://img.shields.io/badge/Python-Data%20Science-yellow)
+![SQL](https://img.shields.io/badge/SQL-Database-green)
+![PowerBI](https://img.shields.io/badge/PowerBI-Visualization-orange)
+
+</p>
 ### Mahomet Limenia Jean-Yves J. Keita
 
 Welcome to my **Business Analytics and Data Science portfolio**.
@@ -177,8 +193,8 @@ Each project includes:
 
 Mahomet Limenia Jean-Yves J. Keita
 
-Email: [mlkei4@ulaval.ca](mailto:mlkei4@ulaval.ca)
+📧 Email: [mlkei4@ulaval.ca](mailto:mlkei4@ulaval.ca)
 
-LinkedIn: www.linkedin.com/in/mahometkeita 
+🔗 LinkedIn: www.linkedin.com/in/mahometkeita 
 
-
+💻 GitHub: https://github.com/keitamahomet
