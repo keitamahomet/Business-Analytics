@@ -95,4 +95,3 @@ These datasets support the following tasks:
 * creating a SQLite database
 * enforcing primary and foreign key constraints
 * performing SQL queries to analyze company information
-
