@@ -1,0 +1,254 @@
+---
+title: |
+  MQT7021 - Analytique d'affaires
+  Travail pratique 1 - Analytique descriptive
+  Automne 2025
+  Université Laval - FSA
+  Enseignant: Pr Michael Morin
+author: |
+  **NITCHEU TCHAMGOUE, Paulin** (Matricule: 536968218)
+  **MARTIN, SABRINA** (Matricule: 537381603)
+  **KEITA, MAHOMET LIMENIA JEAN_YVES** (Matricule: 537175293)
+  **Date de remise:** 8 Octobre 2025
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    theme: readable
+    highlight: kate
+    df_print: paged
+    code_folding: show
+    code_download: true
+    self_contained: true
+mathjax: default
+lang: fr
+linkcolor: blue
+geometry: margin=2.5cm
+mainfont: "Times New Roman"
+bibliography: references.bib
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,        # Afficher le code
+  message = FALSE,    # Ne pas afficher les messages (souvent générés par les librairies)
+  warning = FALSE,    # Ne pas afficher les avertissements
+  results=''         # Afficher le résultat des codes
+)
+```
+\newpage
+
+# Question 2 : Chez Tony - Analyse d'achalandage
+
+    2.1 - Lire le fichier
+Chargement des librairies tidyverse {@tidyverse}, readxl {@readxl}, lubridate {@lubridate} & plotly {@plotly} qui seront utilisées pour répondre à la question 2.
+```{r}
+library("tidyverse")
+library("readxl")
+library("lubridate")
+library("plotly")
+```
+
+Lecture du fichier excel chez Tony et création d'un objet pour stocker ces données. Ce sont des données internes provenant de la compagnie.
+
+```{r}
+
+# Définition du chemin relatif pour la lecture de fichier
+chemin_fichier_chezTony <- ("data/chezTony/chezTony.xlsx")
+
+# Lecture de fichier
+chez_tony <- read_excel(chemin_fichier_chezTony)
+```
+
+Affichage des 3 premières lignes du data frame avec la fonction head. Les données ne sont pas tabulées au sens tidy du terme.Les heures sont dans des colonnes différentes au lieu d'être dans une seule colonne (c'est une variable).
+```{r}
+chez_tony %>%
+  head(3)
+```
+Vérifier s'il y a des valeurs manquantes suite au chargement et voir combien de lignes sont dans le data frame. Aucune valeur manquante.
+```{r}
+chez_tony %>% 
+  summarize(
+    na_count = sum(is.na(.)), n = n())
+```
+
+
+    2.2 - Données propres
+
+Ranger les données pour qu'elle soient tabulées au sens "tidy" avec 3 variables : date, heure, nombre de clients. La fonction pivot longer est utilisée pour ranger les données d'heures dans une nouvelle colonne "Heure". Les observations du nombre de client par heure seront dans la colonne "Client". Ensuite nous affichons le résulat de ce traitement.
+```{r}
+# Transformation des données
+chez_tony_propre <- chez_tony %>%
+  pivot_longer(
+    cols = -date,
+    names_to = "Heure",
+    values_to = "Clients"
+  )
+chez_tony_propre %>%
+  head(3)
+```
+Vérifier s'il y a des valeurs manquantes et vérifier le nombre de lignes du data frame suite au traitement. Aucune valeurs manquantes, et on peut voir que les données ont plus d'observations maintenant.
+```{r}
+chez_tony_propre %>%
+  summarize(
+    na_count = sum(is.na(.)), n = n())
+```
+
+
+
+    2.3 - Noms des jours et numéro des semaines
+
+Ajout des étiquettes du jour de la semaine et du numéro de semaine avec l'aide du paquet {@lubridate}. Affichage des 3 premières lignes suite au traitement.
+```{r}
+chez_tony_propre_etiquette <- chez_tony_propre %>%
+  mutate(
+    Jour = wday(date, label = TRUE, abbr = TRUE),
+    Semaine = week(date)
+  )
+
+chez_tony_propre_etiquette %>%
+  head(3)
+```
+
+    2.4 - Visualisation du nombre de clients par jour et par heure
+
+Démontrer à Tony que les heures matinales et tardives sont moins achalandées. Le magasin est fermé les samedi et dimanche alors nous n'utiliserons pas ces journées pour la visualisation.D'abord nous faison un filtre pour exclure les fins de semaine. Ensuite nous faisons un tri par heure. Affichage des données traitées.
+```{r}
+
+# Retrait des données de fins de semaine
+ chez_tony_semaine <- 
+  chez_tony_propre_etiquette  %>%
+  filter(!(Jour %in% c("Sat", "Sun"))) %>%
+  mutate(Heure = factor(Heure, levels = paste0(8:18, "h")))%>%
+  group_by(Heure)
+
+chez_tony_semaine %>%
+  head(3)
+
+```
+Visualisation du nombre de clients par jour et par heure sous forme de graphique. On constate rapidement que les heures matinales et tardives sont moins achalandées. Le milieu de la journée (entre 10h et 13h) semble le plus occupé.
+```{r}
+chez_tony_graphique_par_jour <-
+chez_tony_semaine %>%
+ggplot(aes(x = Heure, y = Clients, fill = Jour)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Achalandage du magasin par jour et par heure",
+    subtitle = "Chez Tony - Serrurerie intelligente",
+    x = "Heure de la journée",
+    y = "Nombre de clients",
+    caption = "Source : Données internes"
+  ) +
+  theme(plot.background = element_rect(fill = "grey80"))
+
+chez_tony_graphique_par_jour
+```
+
+
+Visualisation du même graphique sous un format interactif. Ce format permet d'avoir plus de détail avec la souris, sans surcharger l'image. On peut facilement voir le nombre de client à une journée et une heure précise si l'on veut avoir plus de détail. 
+```{r}
+ggplotly(chez_tony_graphique_par_jour)
+```
+
+Visualisation alternative de l'achandage en carte thermique. Cette visualisation permet de voir encore plus rapidement les journées et les heures qui ont un plus gros volume de clients. Les mercredis et jeudis sont occupés presque toute la journée alors que d'autres journées comme le lundi sont occupées sur l'heure du midi mais très tranquille le reste de la journée. Si Tony souhaite maximiser le service sans trop augmenter ses coûts, il pourrait choisir d'ajouter un employé les journées qui sont occupées du matin et soir seulement. Pour les journées comme le lundi, il pourrait lui-même venir donner un coup de main pendant une heure au lieu d'engager un employé supplémentaire.
+
+```{r}
+#visualisation heatmap de l'achalandage
+chez_tony_semaine %>%
+ggplot(aes(x = Heure, y = Jour, fill = Clients)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(option = "C") +
+  labs(
+    title = "Achalandage par heure et par jour",
+    x = "Heure",
+    y = "Jour",
+    fill = "Nb clients"
+  ) +
+  theme_minimal()
+```
+
+
+    2.5 - Nombre de clients dans le temps
+
+Faire une visualisation qui permet d'afficher l'évolution du nombre de clients par date. D'abord nous allons filtrer pour retirer les fins de semaine et puis nous allons compter le nombre de client au total par date. Affichage de la table suite au traitement.
+```{r}
+chez_tony_par_date <- 
+  chez_tony_propre_etiquette %>%
+  filter(!(Jour %in% c("Sat", "Sun"))) %>%
+  group_by(date) %>%
+  summarise(Nbre_Clients_Jour = sum(Clients, na.rm = TRUE))
+  
+chez_tony_par_date %>%
+  head(3)
+
+```
+
+Ensuite nous affichons la visualisation du nombre de clients par date, ainsi que la tendance. Le graphique démontre qu'il y a une tendance à la hausse. Par contre, la période des données que nous avons est relativement petite. Il serait intéressant de faire le même exercice avec une plus grande période pour voir si la tendance se maintient. Cela aiderait aussi à tenir compte d'une possible saisonalité de l'achalandage. Il est possible que le mois d'octobre est toujours plus occupé que le mois de septembre.
+```{r}
+  
+chez_tony_graphique_par_date <-
+chez_tony_par_date %>%
+ggplot(aes(x = date, y = Nbre_Clients_Jour)) +
+  geom_line() +
+  geom_col(fill = "#1ABC9C") +
+  geom_point(color = "#D35400", size = 2) +
+  geom_smooth(method = 'lm', se = TRUE, color = 'darkblue', linewidth = 1.2) +
+  labs(
+    title = "Évolution de l'achalandage par date",
+    subtitle = "Chez Tony - Serrurerie intelligente",
+    x = "Jour dans l'année",
+    y = "Nombre de clients",
+    caption = "Source : Données internes"
+  ) +
+  theme(plot.background = element_rect(fill = "grey80"))
+
+chez_tony_graphique_par_date
+```
+
+
+
+Visualisation du même graphique sous forme interactive. Encore une fois, on peut obtenir plus de détail pour une date spécifique si l'on le souhaite.
+```{r}
+ggplotly(chez_tony_graphique_par_date)
+```
+
+
+Faire une visualisation qui permet d'afficher l'évolution du nombre de clients au fil des semaines.D'abord nous allons filtrer pour retirer les fins de semaine et puis nous allons grouper les données par numéro de semaine et compter le nombre de clients par semaine. Affichage de la table suite au traitement.
+```{r}
+chez_tony_par_semaine <- 
+  chez_tony_propre_etiquette %>%
+  filter(!(Jour %in% c("Sat", "Sun"))) %>%
+  group_by(Semaine) %>%
+  summarise(Nbre_Clients_Sem = sum(Clients, na.rm = TRUE))
+
+chez_tony_par_semaine
+```
+Visualisation sous forme de graphique. L'achalandage semble aussi évoluer d'une semaine à l'autre avec cette visualisation. De même, il serait quand même préférable d'avoir un plus gros jeu de données avant d'en tirer une conclusion.
+```{r}
+chez_tony_graphique_par_semaine <-
+chez_tony_par_semaine %>%
+ggplot(aes(x = Semaine, y = Nbre_Clients_Sem)) +
+  geom_line(color = "#E67E22", linewidth = 1.5) +
+  geom_col(fill = "#1ABC9C") +
+  geom_point(color = "#D35400", size = 3) +
+  geom_smooth(method = 'lm', se = FALSE, color = 'darkblue') +
+  labs(
+    title = "Évolution de l'achalandage semaine après semaine dans l'année",
+    subtitle = "Chez Tony - Serrurerie intelligente",
+    x = "Semaine de l'année",
+    y = "Nombre de clients",
+    caption = "Source : Données internes"
+  ) +
+  theme(plot.background = element_rect(fill = "grey80"))
+
+chez_tony_graphique_par_semaine
+```
+
+
+Visualisation du même graphique sous format interactif. On peut voir le nombre exact de client par semaine. Il serait intéressant de comparer les mêmes semaines des années précédentes. Certains congés pourraient avoir une incidence sur l'achalandage, par exemple l'action de Grâce qui est au mois d'octobre. Il faudra en tenir compte dans une analyse appronfondie.
+```{r}
+ggplotly(chez_tony_graphique_par_semaine)
+```
