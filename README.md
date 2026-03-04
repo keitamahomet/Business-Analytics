@@ -6,15 +6,26 @@ This repository contains projects focused on **data analysis, machine learning, 
 These projects demonstrate my ability to transform data into **actionable insights** using analytical tools such as **Python, R, SQL, and Power BI**.
 
 ---
+## About Me
 
-# About Me
+**Mahomet Limenia Jean-Yves J. Keita**
 
-Mahomet Limenia Jean-Yves J. Keita  
-MBA Candidate – Supply Chain Management & Business Analytics  
-Université Laval – Québec, Canada
+🎓 **Université Laval – Québec, Canada**
 
-I am passionate about applying **data analytics and machine learning to supply chain and business decision-making**. My projects focus on **predictive modeling, customer analytics, business intelligence dashboards, and operational optimization**.
+**Double MBA Candidate**
+- MBA – Supply Chain Management  
+- MBA – Business Analytics  
 
+I am passionate about applying **data analytics and machine learning to supply chain and business decision-making**. My work focuses on transforming data into actionable insights through **predictive modeling, customer analytics, business intelligence dashboards, and operational optimization**.
+
+I am particularly interested in the intersection of **data science, supply chain analytics, and AI-driven decision support**, helping organizations improve operational performance and strategic planning.
+
+### Interests
+- Supply Chain Analytics
+- Demand Forecasting
+- Machine Learning for Business
+- Business Intelligence
+- Data-Driven Decision Making
 ---
 
 # Skills Demonstrated
