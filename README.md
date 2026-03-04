@@ -1,105 +1,158 @@
 # Business Analytics Portfolio
 
-Welcome to my **Business Analytics portfolio**.  
-This repository contains projects focused on **data analysis, machine learning, and decision support for business and operations**.
+### Mahomet Limenia Jean-Yves J. Keita
 
-These projects demonstrate my ability to transform data into **actionable insights** using analytical tools such as **Python, R, SQL, and Power BI**.
+Welcome to my **Business Analytics and Data Science portfolio**.
+This website presents a collection of projects developed during my MBA in **Business Analytics and Supply Chain Management** at **Université Laval**.
+
+My work focuses on using **data analysis, machine learning, optimization and visualization** to support business decision-making.
 
 ---
-## About Me
 
-**Mahomet Limenia Jean-Yves J. Keita**
+# About Me
 
-🎓 **Université Laval – Québec, Canada**
+I am a graduate student specializing in **Business Analytics and Supply Chain Management** with strong interests in:
 
-**Double MBA Candidate**
-- MBA – Supply Chain Management  
-- MBA – Business Analytics  
+* Data Analytics
+* Predictive Modeling
+* Optimization
+* Supply Chain Analytics
+* Business Intelligence
 
-I am passionate about applying **data analytics and machine learning to supply chain and business decision-making**. My work focuses on transforming data into actionable insights through **predictive modeling, customer analytics, business intelligence dashboards, and operational optimization**.
+I enjoy transforming raw data into **actionable insights that help organizations improve their performance and make better strategic decisions**.
 
-I am particularly interested in the intersection of **data science, supply chain analytics, and AI-driven decision support**, helping organizations improve operational performance and strategic planning.
-
-### Interests
-- Supply Chain Analytics
-- Demand Forecasting
-- Machine Learning for Business
-- Business Intelligence
-- Data-Driven Decision Making
 ---
 
-# Skills Demonstrated
+# Skills
 
-**Data Analysis**
-- Python (pandas, numpy, matplotlib, scikit-learn)
-- R (dplyr, ggplot2)
-- SQL
-- Excel
+### Programming
 
-**Data Visualization**
-- Power BI
-- Data dashboards
-- Business intelligence reporting
+* R
+* Python
+* SQL
 
-**Machine Learning**
-- Classification models
-- Feature engineering
-- Model evaluation
+### Data Analysis
+
+* Data Cleaning
+* Exploratory Data Analysis
+* Statistical Modeling
+* Feature Engineering
+
+### Machine Learning
+
+* Random Forest
+* K-Nearest Neighbors
+* Neural Networks
+* Regression Models
+
+### Data Visualization
+
+* Power BI
+* ggplot2
+* Matplotlib
 
 ---
 
 # Projects
 
-## Sales Performance Dashboard
+## Descriptive Analytics
 
-Interactive Power BI dashboard designed to analyze sales performance across companies and product categories.
+### Sales Performance Dashboard
 
-**Objectives**
-- Monitor key business indicators
-- Identify sales trends
-- Support data-driven decision making
+Interactive dashboard analyzing company sales performance.
 
-**Tools**
-Power BI, Power Query, Data Visualization
+Tools used:
 
-📂 Project folder  
-`projects/sales-performance-dashboard`
+* Power BI
+* Data visualization
+* Business Intelligence
 
 ---
 
-## Customer Value Classification
+## Predictive Analytics
 
-Machine learning project that classifies customers based on their **average purchase basket value** in order to support targeted marketing campaigns.
+### Weather Impact on Sales
 
-**Models implemented**
-- K-Nearest Neighbors
-- Decision Trees
-- Random Forest
-- Neural Networks
+Analysis of the relationship between **weather conditions and product sales** using clustering and data visualization.
 
-**Tools**
-Python, scikit-learn, Feature Engineering
+Tools used:
 
-📂 Project folder  
-`projects/customer-value-classification`
+* R
+* ggplot2
+* Data clustering
 
 ---
 
-## Predictive Analytics with R
+### Greenhouse Gas Emissions Prediction
 
-Project focused on **data exploration and predictive modeling** using the R programming language.
+Machine learning models were developed to predict **company greenhouse gas emissions**.
 
-**Objectives**
-- Explore data patterns
-- Build predictive models
-- Generate insights using statistical analysis
+Models used:
 
-**Tools**
-R, dplyr, ggplot2
+* Random Forest
+* Neural Networks
+* K-Nearest Neighbors
 
-📂 Project folder  
-`projects/predictive-analytics-r`
+---
+
+## Prescriptive Analytics
+
+### Camera Placement Optimization
+
+This project uses **integer programming and optimization algorithms** to determine the **minimum number of surveillance cameras required to monitor building corridors**.
+
+Tools used:
+
+* R
+* CVXR
+* Genetic Algorithms
+
+---
+
+# Database Project
+
+### Companies Relational Database
+
+Construction of a **relational SQLite database** containing information about companies across North America.
+
+Technologies:
+
+* SQL
+* SQLite
+* R
+
+---
+
+# Project Files
+
+All project files can be accessed in the **Projets directory**.
+
+These include:
+
+* R Markdown reports
+* HTML reports
+* datasets
+* code scripts
+* database files
 
 ---
 
 # Repository Structure
+
+```
+Projets/
+│
+├── database_project
+├── descriptive_analytics
+├── predictive_analytics
+├── prescriptive_analytics
+```
+
+---
+
+# Contact
+
+Mahomet Limenia Jean-Yves J. Keita
+
+LinkedIn
+Email: [mlkei4@ulaval.ca](mailto:mlkei4@ulaval.ca)
