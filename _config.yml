@@ -1,0 +1,17 @@
+title: Mahomet Keita - Business Analytics Portfolio
+description: Portfolio of projects in Business Analytics, Machine Learning and Supply Chain Analytics
+theme: jekyll-theme-minimal
+
+author:
+  name: Mahomet Limenia Jean-Yves J. Keita
+  email: Keitamahomet98@gmail.com
+  email: mlkei4@ulaval.ca
+
+social_links:
+  linkedin: https://linkedin.com/in/mahometkeita
+  github: https://github.com/yourusername
+
+markdown: kramdown
+
+plugins:
+  - jekyll-feed
